@@ -1,0 +1,18 @@
+[project]
+name = "strands-agents-semantic-summarizing-conversation-manager"
+version = "0.1.0"
+description = "Conversation management system for Strands Agents that combines summarization with exact message recall using semantic search"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.3.3",
+    "sentence-transformers>=5.1.0",
+    "strands-agents>=1.9.1",
+    "torch>=2.8.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13.1",
+    "vulture>=2.14",
+]
