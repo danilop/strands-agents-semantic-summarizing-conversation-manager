@@ -110,26 +110,44 @@ print(agent.conversation_manager.get_memory_usage_summary())
 The system consists of three main components that work together to provide hybrid memory:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ff6b6b", "primaryTextColor": "#fff", "primaryBorderColor": "#ff5252", "lineColor": "#333", "secondaryColor": "#4ecdc4", "tertiaryColor": "#ffe66d", "background": "#f8f9fa", "mainBkg": "#ffffff", "secondBkg": "#f1f3f4"}}}%%
 graph TB
-    subgraph "Strands Agent"
-        A[Agent] --> B[Active Messages]
-        A --> C[K/V State]
-        A --> D[Hooks System]
+    %% Define node styles
+    classDef agentStyle fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
+    classDef memoryStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef storageStyle fill:#e8f5e8,stroke:#388e3c,stroke-width:2px,color:#000
+
+    subgraph SA["🤖 Strands Agent"]
+        A[Agent]
+        B[Active Messages]
+        C[K/V State]
+        D[Hooks System]
     end
 
-    subgraph "Semantic Memory System"
-        E[SemanticSummarizingConversationManager]
-        F[SemanticMemoryHook]
-        G[SemanticSearch Engine]
+    subgraph SMS["🧠 Semantic Memory System"]
+        E[Conversation<br/>Manager]
+        F[Memory Hook]
+        G[Search Engine]
     end
 
-    subgraph "Storage & Indexing"
-        H[Semantic Index<br/>Embeddings + Cross-Encoder]
-        I["Agent State<br/>archived_messages: Message[]"]
-        J[Summary<br/>Active Conversation]
+    subgraph SI["💾 Storage & Indexing"]
+        H[Semantic Index<br/>📊 Embeddings]
+        I[Agent State<br/>📝 archived_messages]
+        J[Summary<br/>💬 Active Conversation]
     end
 
-    A --> E
+    %% Apply styles
+    class A,B,C,D agentStyle
+    class E,F,G memoryStyle
+    class H,I,J storageStyle
+
+    %% Internal connections
+    A --> B
+    A --> C
+    A --> D
+
+    %% System connections
+    A -.-> E
     D --> F
     E --> G
     E --> H
@@ -138,15 +156,15 @@ graph TB
     F --> G
     G --> H
 
-    B --> |Context Overflow| E
-    E --> |Summarize & Store| I
-    E --> |Index Messages| H
-    E --> |Create Summary| J
+    %% Flow connections
+    B -->|Context Overflow| E
+    E -->|Summarize & Store| I
+    E -->|Index Messages| H
+    E -->|Create Summary| J
     J --> B
-
-    F --> |Search Query| G
-    G --> |Relevant Messages| F
-    F --> |Enrich Message| A
+    F -->|Search Query| G
+    G -->|Relevant Messages| F
+    F -->|Enrich Message| A
 ```
 
 ## Process Flow
@@ -154,36 +172,47 @@ graph TB
 Here's how the system handles a typical conversation with memory retrieval:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"actorBkg": "#e3f2fd", "actorBorder": "#1976d2", "actorTextColor": "#000", "activationBkgColor": "#fff3e0", "activationBorderColor": "#ff9800"}}}%%
 sequenceDiagram
-    participant U as User
-    participant A as Agent
-    participant CM as ConversationManager
-    participant H as MemoryHook
-    participant SE as SemanticEngine
-    participant KV as K/V State
+    participant U as 👤 User
+    participant A as 🤖 Agent
+    participant CM as 💭 ConversationManager
+    participant H as 🔗 MemoryHook
+    participant SE as 🔍 SemanticEngine
+    participant KV as 💾 K/V State
 
-    Note over U,KV: Normal Conversation Flow
-    U->>A: New message
-    A->>CM: Check context size
+    rect rgb(240, 248, 255)
+        Note over U,KV: 📝 Normal Conversation Flow
+        U->>+A: New message
+        A->>+CM: Check context size
 
-    alt Context overflow occurs
-        CM->>SE: Index old messages
-        CM->>KV: Store exact messages
-        CM->>A: Replace with summary
-        SE->>SE: Build embeddings
+        alt Context overflow occurs
+            CM->>+SE: Index old messages
+            CM->>+KV: Store exact messages
+            CM->>A: Replace with summary
+            SE->>SE: Build embeddings
+            KV-->>-CM: ✅ Stored
+            SE-->>-CM: ✅ Indexed
+        end
+        CM-->>-A: Ready
+        A-->>-U: Response
     end
 
-    Note over U,KV: Memory-Enhanced Query
-    U->>A: Question about old topic
-    A->>H: MessageAddedEvent triggered
-    H->>SE: Search for relevant messages
-    SE->>SE: Embed query & search
-    SE->>SE: Rerank with cross-encoder
-    SE->>H: Return relevant messages
-    H->>KV: Get full message content
-    H->>A: Enrich user message with context
-    A->>A: Generate response with history
-    A->>U: Answer with recalled context
+    rect rgb(248, 255, 248)
+        Note over U,KV: 🧠 Memory-Enhanced Query
+        U->>+A: Question about old topic
+        A->>+H: MessageAddedEvent triggered
+        H->>+SE: Search for relevant messages
+        SE->>SE: Embed query & search
+        SE->>SE: Rerank with cross-encoder
+        SE->>-H: Return relevant messages
+        H->>+KV: Get full message content
+        KV-->>-H: Historical context
+        H->>A: Enrich user message with context
+        A->>A: Generate response with history
+        A-->>-U: ✨ Answer with recalled context
+        H-->>-A: Context injected
+    end
 ```
 
 ## Configuration
