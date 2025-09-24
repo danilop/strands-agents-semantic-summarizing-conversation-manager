@@ -125,7 +125,7 @@ graph TB
 
     subgraph "Storage & Indexing"
         H[Semantic Index<br/>Embeddings + Cross-Encoder]
-        I[Agent State<br/>archived_messages: Message[]]
+        I["Agent State<br/>archived_messages: Message[]"]
         J[Summary<br/>Active Conversation]
     end
 
