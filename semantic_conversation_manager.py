@@ -14,7 +14,7 @@ from strands.types.exceptions import ContextWindowOverflowException
 from strands.agent.conversation_manager.conversation_manager import ConversationManager
 
 # Import the local SemanticSearch
-from semantic_search import SemanticSearch
+from semantic_search import SemanticSearch, SearchConfig
 from message_container import ArchivedMessageContainer
 
 if TYPE_CHECKING:
@@ -73,6 +73,9 @@ class SemanticSummarizingConversationManager(ConversationManager):
         semantic_search_min_score: float = -2.0,
         max_num_archived_messages: Optional[int] = None,
         max_memory_archived_messages: Optional[int] = None,
+        embedding_model: str = "all-MiniLM-L12-v2",
+        bedrock_region: Optional[str] = None,
+        embedding_dimensions: Optional[int] = None,
     ):
         """Initialize the conversation manager with semantic memory.
 
@@ -95,6 +98,13 @@ class SemanticSummarizingConversationManager(ConversationManager):
                 If None, no limit is applied. When limit is reached, oldest messages are removed.
             max_memory_archived_messages: Optional maximum memory usage in bytes for archived
                 messages and their semantic embeddings. If None, no limit is applied.
+            embedding_model: Embedding model to use. Can be:
+                - "model_name" or "local:model_name" for sentence-transformers models
+                - "bedrock:model_id" for AWS Bedrock models (e.g., "bedrock:amazon.titan-embed-text-v2:0")
+                Defaults to "all-MiniLM-L12-v2".
+            bedrock_region: AWS region for Bedrock models. Only required when using Bedrock models.
+            embedding_dimensions: Dimensions for models that support variable dimensions.
+                For example, Titan v2 supports 256, 512, or 1024 dimensions.
         """
         super().__init__()
         if summarization_agent is not None and summarization_system_prompt is not None:
@@ -123,10 +133,22 @@ class SemanticSummarizingConversationManager(ConversationManager):
         self._max_num_archived_messages = max_num_archived_messages
         self._max_memory_archived_messages = max_memory_archived_messages
 
+        # Store embedding configuration
+        self._embedding_model = embedding_model
+        self._bedrock_region = bedrock_region
+        self._embedding_dimensions = embedding_dimensions
+
     def _initialize_semantic_index(self) -> SemanticSearch:
         """Initialize or get the semantic search index."""
         if self._semantic_index is None:
-            self._semantic_index = SemanticSearch()
+            # Create search config with embedding model settings
+            config = SearchConfig(
+                embedding_model=self._embedding_model,
+                bedrock_region=self._bedrock_region,
+                embedding_dimensions=self._embedding_dimensions,
+                auto_index=True,
+            )
+            self._semantic_index = SemanticSearch(config=config)
         return self._semantic_index
 
     def _ensure_container(self) -> ArchivedMessageContainer:
@@ -156,6 +178,13 @@ class SemanticSummarizingConversationManager(ConversationManager):
         self._summary_message = state.get("summary_message")
         self._message_id_counter = state.get("message_id_counter", 0)
 
+        # Restore embedding configuration if available
+        self._embedding_model = state.get("embedding_model", self._embedding_model)
+        self._bedrock_region = state.get("bedrock_region", self._bedrock_region)
+        self._embedding_dimensions = state.get(
+            "embedding_dimensions", self._embedding_dimensions
+        )
+
         # Restore semantic index and message container from stored messages
         archived_messages = state.get("archived_messages", [])
         if archived_messages:
@@ -172,6 +201,9 @@ class SemanticSummarizingConversationManager(ConversationManager):
         state = {
             "summary_message": self._summary_message,
             "message_id_counter": self._message_id_counter,
+            "embedding_model": self._embedding_model,
+            "bedrock_region": self._bedrock_region,
+            "embedding_dimensions": self._embedding_dimensions,
             **super().get_state(),
         }
 

@@ -61,6 +61,12 @@ conversation_manager = SemanticSummarizingConversationManager(
     semantic_search_min_score=-2.0,         # Default: balanced relevance threshold
     max_num_archived_messages=1000,         # Optional: limit by message count
     max_memory_archived_messages=50*1024*1024,  # Optional: limit by memory usage (50MB)
+
+    # Embedding model configuration (optional)
+    embedding_model="all-MiniLM-L12-v2",    # Default: local sentence-transformers model
+    # embedding_model="bedrock:amazon.titan-embed-text-v2:0",  # Alternative: AWS Bedrock
+    # bedrock_region="us-west-2",            # Required for Bedrock models
+    # embedding_dimensions=512,              # Optional: for models with variable dimensions
 )
 
 # Create the hook
@@ -233,6 +239,46 @@ sequenceDiagram
 - `max_context_length`: Maximum characters for injected context
 - `include_metadata`: Include message indices in context
 
+## Embedding Models
+
+The system supports configurable embedding models for semantic search:
+
+### Model Types
+
+**Local Models** (default, via sentence-transformers):
+- `"all-MiniLM-L12-v2"` - 384 dimensions (default)
+- `"all-MiniLM-L6-v2"` - 384 dimensions
+- `"all-mpnet-base-v2"` - 768 dimensions
+- Any model from [Hugging Face sentence-transformers](https://huggingface.co/models?library=sentence-transformers)
+
+**AWS Bedrock Models** (cloud-based):
+- `"bedrock:amazon.titan-embed-text-v1"` - 1536 dimensions
+- `"bedrock:amazon.titan-embed-text-v2:0"` - 256/512/1024 dimensions (configurable)
+- `"bedrock:cohere.embed-english-v3"` - 1024 dimensions
+
+### Configuration Examples
+
+```python
+# Default local model
+manager = SemanticSummarizingConversationManager()
+
+# Specific local model
+manager = SemanticSummarizingConversationManager(
+    embedding_model="all-mpnet-base-v2"
+)
+
+# AWS Bedrock model
+manager = SemanticSummarizingConversationManager(
+    embedding_model="bedrock:amazon.titan-embed-text-v2:0",
+    bedrock_region="us-west-2",
+    embedding_dimensions=512  # Optional: 256, 512, or 1024
+)
+```
+
+### AWS Bedrock Setup
+
+For Bedrock models, configure AWS credentials or an Amazon Bedrock API key.
+
 ## Example Output
 
 When you ask about something discussed earlier:
@@ -254,6 +300,7 @@ Current question: What was the exact decorator syntax you showed earlier?
 - `message_container.py` - Message storage with automatic semantic indexing
 - `semantic_memory_hook.py` - Hook for automatic context enrichment
 - `semantic_search.py` - Semantic search engine with embeddings
+- `embedding_providers.py` - Configurable embedding providers (local and Bedrock)
 - `message_utils.py` - Message processing utilities
 - `memory_estimator.py` - Memory usage calculation utilities
 - `main.py` - Demo and test examples
@@ -264,20 +311,27 @@ Current question: What was the exact decorator syntax you showed earlier?
 Run the demonstration:
 
 ```bash
+# Run comparison mode (tests both local and Bedrock embeddings)
 uv run main.py
+
+# Test embedding configuration only
+uv run main.py --embedding-test-only
+
+# Test specific embedding model
+uv run main.py --embedding-model "bedrock:amazon.titan-embed-text-v2:0" --region us-west-2
 ```
 
 This runs a test showing how semantic memory preserves exact information that is excluded from summaries. The demo:
 
 1. **Creates an agent** with semantic memory capabilities
-2. **Stores a secret** that should not appear in summaries
+2. **Stores a reference number** that should not appear in summaries
 3. **Builds conversation history** with 20 messages about data structures
 4. **Triggers summarization** to move older messages to semantic memory
-5. **Verifies secret exclusion** from the summary content
-6. **Tests semantic retrieval** to confirm the secret can still be found
+5. **Verifies reference number exclusion** from the summary content
+6. **Tests semantic retrieval** to confirm the reference number can still be found
 7. **Demonstrates hook enrichment** by automatically injecting relevant historical context
 
-The test generates a random secret number each time and provides detailed diagnostics showing that sensitive information can be excluded from summaries while remaining accessible through semantic search.
+The test generates a random reference number each time and provides detailed diagnostics showing that sensitive information can be excluded from summaries while remaining accessible through semantic search.
 
 ### Example Output
 
@@ -285,8 +339,8 @@ When you run the demo, you'll see the system in action:
 
 **Before summarization (20 messages):**
 ```
-[ 0] user: My secret number is 700. This is confidential - don't include it in any summary...
-[ 1] assistant: Understood. I'll keep your secret number confidential...
+[ 0] user: Our shared reference number for this conversation is 700. Please keep this number for our records but don't include it in any summary...
+[ 1] assistant: Understood. I'll keep our shared reference number for our records...
 [ 2] user: Tell me about data structures
 ...
 [19] assistant: Recursion is when a function calls itself to solve smaller instances...
@@ -298,25 +352,25 @@ When you run the demo, you'll see the system in action:
          * Topic 1: Explanation of data structures
          * Topic 2: Arrays
          * Topic 3: Linked Lists
-         [Note: Secret number 700 is NOT in summary ✅]
+         [Note: Reference number 700 is NOT in summary ✅]
 [ 1] user: What are sorting algorithms?
 ...
 ```
 
-**Semantic retrieval finds the archived secret:**
+**Semantic retrieval finds the archived reference number:**
 ```
-🔍 Query: 'What was my secret number? The special word is pineapple.'
+🔍 Query: 'What was our shared reference number? The special word is pineapple.'
 Search completed in 66.7ms (reranked from 9 candidates)
 ✅ Found 4 relevant messages in semantic memory
-   • Secret '700' retrievable: ✅ YES
+   • Reference number '700' retrievable: ✅ YES
 ```
 
 **Context automatically enriched:**
 ```
 Based on our previous conversation, these earlier exchanges may be relevant:
 ---Previous Context---
-[Message 0, user]: My secret number is 700. This is confidential...
-[Message 1, assistant]: Understood. I'll keep your secret number confidential...
+[Message 0, user]: Our shared reference number for this conversation is 700. Please keep this number for our records...
+[Message 1, assistant]: Understood. I'll keep our shared reference number for our records...
 ---End Previous Context---
-Current question: What was my secret number?
+Current question: What was our shared reference number?
 ```

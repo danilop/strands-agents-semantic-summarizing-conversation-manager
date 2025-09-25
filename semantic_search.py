@@ -29,8 +29,9 @@ import numpy as np
 import time
 import pickle
 from pathlib import Path
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from sentence_transformers import CrossEncoder
 import torch
+from embedding_providers import create_embedding_provider
 
 
 @dataclass
@@ -40,7 +41,6 @@ class SearchResult:
     score: float
     text: str
     index: int
-    reranked: bool = False
 
 
 class SemanticSearchInterface(ABC):
@@ -92,18 +92,24 @@ class SearchConfig:
         cache_dir: Optional[str] = "./cache",
         auto_index: bool = True,
         batch_size: int = 32,
+        bedrock_region: Optional[str] = None,
+        embedding_dimensions: Optional[int] = None,
     ):
         """
         Initialize search configuration.
 
         Args:
-            embedding_model: Name of the sentence transformer model for embeddings
+            embedding_model: Name of the embedding model. Can be:
+                - "model_name" or "local:model_name" for sentence-transformers models
+                - "bedrock:model_id" for AWS Bedrock models
             cross_encoder_model: Name of the cross-encoder model for reranking
             device: 'cuda', 'cpu', or None for auto-detection
             use_half_precision: Use float16 to reduce memory (GPU only)
             cache_dir: Directory for caching embeddings
             auto_index: Automatically index documents when added
             batch_size: Batch size for encoding documents
+            bedrock_region: AWS region for Bedrock models
+            embedding_dimensions: Dimensions for models that support variable dimensions
         """
         self.embedding_model = embedding_model
         self.cross_encoder_model = cross_encoder_model
@@ -112,6 +118,8 @@ class SearchConfig:
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.auto_index = auto_index
         self.batch_size = batch_size
+        self.bedrock_region = bedrock_region
+        self.embedding_dimensions = embedding_dimensions
 
         if self.cache_dir:
             self.cache_dir.mkdir(exist_ok=True)
@@ -162,24 +170,28 @@ class SemanticSearch(SemanticSearchInterface):
 
     def _init_models(self):
         """Initialize the ML models"""
-        print(f"Initializing semantic search on {self.config.device}...")
+        print("Initializing semantic search...")
 
-        # Load embedding model
-        self._encoder = SentenceTransformer(
-            self.config.embedding_model, device=self.config.device
+        # Create embedding provider based on model specification
+        self._encoder = create_embedding_provider(
+            model_spec=self.config.embedding_model,
+            device=self.config.device,
+            region_name=self.config.bedrock_region,
+            dimensions=self.config.embedding_dimensions,
         )
 
-        # Optionally use half precision
-        if self.config.use_half_precision and self.config.device == "cuda":
-            self._encoder = self._encoder.half()
-            print("Using half precision (float16) for reduced memory usage")
+        # Get model info for logging
+        model_info = self._encoder.get_model_info()
+        print(f"✓ Embedding provider: {model_info.provider}")
+        print(f"✓ Model: {model_info.model_id}")
+        print(f"✓ Dimensions: {model_info.dimensions}")
 
-        # Load cross-encoder for reranking
+        # Load cross-encoder for reranking (still uses sentence-transformers)
         self._cross_encoder = CrossEncoder(
             self.config.cross_encoder_model, device=self.config.device
         )
 
-        print(f"✓ Models loaded: {self.config.embedding_model}")
+        print(f"✓ Cross-encoder: {self.config.cross_encoder_model}")
 
     def add(self, documents: Union[str, List[str]]) -> "SemanticSearch":
         """
@@ -228,13 +240,12 @@ class SemanticSearch(SemanticSearchInterface):
         print(f"Indexing {len(self._pending_documents)} new document(s)...")
         start_time = time.time()
 
-        # Encode new documents
+        # Encode new documents using the embedding provider
         new_embeddings = self._encoder.encode(
             self._pending_documents,
             batch_size=self.config.batch_size,
             show_progress_bar=len(self._pending_documents) > 100,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
+            normalize=True,
         )
 
         # Update embeddings
@@ -322,10 +333,11 @@ class SemanticSearch(SemanticSearchInterface):
 
         start_time = time.time()
 
-        # Encode query
-        query_embedding = self._encoder.encode(
-            query, convert_to_numpy=True, normalize_embeddings=True
-        )
+        # Encode query using the embedding provider
+        query_embedding = self._encoder.encode(query, normalize=True)
+        # Ensure it's 1D for dot product
+        if len(query_embedding.shape) > 1:
+            query_embedding = query_embedding[0]
 
         # Calculate similarities (dot product since embeddings are normalized)
         similarities = np.dot(self._embeddings, query_embedding)
@@ -354,7 +366,6 @@ class SemanticSearch(SemanticSearchInterface):
                     score=float(cross_scores[idx]),
                     text=candidate_texts[idx],
                     index=int(top_indices[idx]),
-                    reranked=True,
                 )
                 for idx in rerank_indices
             ]
@@ -371,7 +382,6 @@ class SemanticSearch(SemanticSearchInterface):
                     score=float(similarities[i]),
                     text=self._documents[i],
                     index=int(i),
-                    reranked=False,
                 )
                 for i in top_indices
             ]
@@ -435,7 +445,6 @@ class SemanticSearch(SemanticSearchInterface):
                 score=float(similarities[i]),
                 text=self._documents[i],
                 index=int(i),
-                reranked=False,
             )
             for i in top_indices
             if i != document_index or not exclude_self
@@ -532,12 +541,22 @@ class SemanticSearch(SemanticSearchInterface):
         if not self._is_indexed:
             self.index()
 
+        # Get model info for saving
+        model_info = self._encoder.get_model_info()
+
         data = {
             "documents": self._documents,
             "embeddings": self._embeddings,
             "config": {
                 "embedding_model": self.config.embedding_model,
                 "cross_encoder_model": self.config.cross_encoder_model,
+                "bedrock_region": self.config.bedrock_region,
+                "embedding_dimensions": self.config.embedding_dimensions,
+                "model_info": {
+                    "provider": model_info.provider,
+                    "model_id": model_info.model_id,
+                    "dimensions": model_info.dimensions,
+                },
             },
         }
 
@@ -572,9 +591,17 @@ class SemanticSearch(SemanticSearchInterface):
 
         # Create config if not provided
         if config is None:
+            # Preserve original model specification
+            saved_config = data.get("config", {})
             config = SearchConfig(
-                embedding_model=data["config"]["embedding_model"],
-                cross_encoder_model=data["config"]["cross_encoder_model"],
+                embedding_model=saved_config.get(
+                    "embedding_model", "all-MiniLM-L12-v2"
+                ),
+                cross_encoder_model=saved_config.get(
+                    "cross_encoder_model", "cross-encoder/ms-marco-MiniLM-L-12-v2"
+                ),
+                bedrock_region=saved_config.get("bedrock_region"),
+                embedding_dimensions=saved_config.get("embedding_dimensions"),
             )
 
         # Create instance and load data
