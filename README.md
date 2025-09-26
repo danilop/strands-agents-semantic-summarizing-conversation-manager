@@ -256,14 +256,14 @@ Response: "You specifically asked about decorators and requested an example with
   'themeVariables': {
     'cScale0': '#1976D2',
     'cScale1': '#7B1FA2',
-    'cScale2': '#E8F5E9',
-    'cScale3': '#FFF3E0',
-    'cScale4': '#FFEBEE',
+    'cScale2': '#4CAF50',
+    'cScale3': '#FF9800',
+    'cScale4': '#F44336',
     'cScaleLabel0': '#FFF',
     'cScaleLabel1': '#FFF',
-    'cScaleLabel2': '#000',
-    'cScaleLabel3': '#000',
-    'cScaleLabel4': '#000'
+    'cScaleLabel2': '#FFF',
+    'cScaleLabel3': '#FFF',
+    'cScaleLabel4': '#FFF'
   }
 }}%%
 timeline
