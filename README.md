@@ -67,7 +67,7 @@ conversation_manager = SemanticSummarizingConversationManager(
 
     # Embedding model configuration (optional)
     embedding_model="all-MiniLM-L12-v2",    # Default: local sentence-transformers model
-    # embedding_model="bedrock:amazon.titan-embed-text-v2:0",  # Alternative: AWS Bedrock
+    # embedding_model="bedrock:amazon.titan-embed-text-v2:0",  # Alternative: embedding model in Amazon Bedrock
     # aws_region="us-west-2",                # Optional: AWS Region (uses AWS SDK default if not specified)
     # embedding_dimensions=512,              # Optional: for models with variable dimensions
 )
@@ -420,7 +420,7 @@ The system supports configurable embedding models for semantic search:
 - `"all-mpnet-base-v2"` - 768 dimensions
 - Any model from [Hugging Face sentence-transformers](https://huggingface.co/models?library=sentence-transformers)
 
-**AWS Bedrock Models** (cloud-based):
+**Amazon Bedrock Embedding Models** (cloud-based):
 - `"bedrock:amazon.titan-embed-text-v1"` - 1536 dimensions
 - `"bedrock:amazon.titan-embed-text-v2:0"` - 256/512/1024 dimensions (configurable)
 - `"bedrock:cohere.embed-english-v3"` - 1024 dimensions
@@ -436,15 +436,15 @@ manager = SemanticSummarizingConversationManager(
     embedding_model="all-mpnet-base-v2"
 )
 
-# AWS Bedrock model
+# Amazon Bedrock model
 manager = SemanticSummarizingConversationManager(
     embedding_model="bedrock:amazon.titan-embed-text-v2:0",
-    aws_region="us-west-2",  # Optional: uses boto3 default if not specified
+    aws_region="us-west-2",  # Optional: uses AWS SDK default if not specified
     embedding_dimensions=512  # Optional: 256, 512, or 1024
 )
 ```
 
-### AWS Bedrock Setup
+### Amazon Bedrock Setup
 
 For Bedrock models, configure AWS credentials or an Amazon Bedrock API key.
 
