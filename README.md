@@ -115,7 +115,7 @@ When context overflows, older messages are summarized for the active conversatio
 *When the conversation starts, archived messages are empty*
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#000", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFF3E0"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFF3E0"}}}%%
 graph LR
     %% Node styles
     classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
@@ -165,7 +165,7 @@ Response: Based on the active conversation context
 *After context overflow triggers summarization, archived messages become available for retrieval*
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#000", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFF3E0"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFF3E0"}}}%%
 graph LR
     %% Node styles
     classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
@@ -251,7 +251,7 @@ Response: "You specifically asked about decorators and requested an example with
 ### Memory Flow Timeline
 
 ```mermaid
-%%{init: {"theme": "base"}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3"}}}%%
 timeline
     title Conversation Lifecycle with Semantic Memory
 
@@ -348,7 +348,7 @@ graph TB
 Here's how the system handles a typical conversation with memory retrieval:
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"actorBkg": "#e3f2fd", "actorBorder": "#1976d2", "actorTextColor": "#000", "activationBkgColor": "#fff3e0", "activationBorderColor": "#ff9800"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"actorBkg": "#E3F2FD", "actorBorder": "#1976D2", "actorTextColor": "#000", "activationBkgColor": "#FFF3E0", "activationBorderColor": "#FF9800", "primaryColor": "#F5F5F5", "primaryTextColor": "#000", "lineColor": "#2196F3"}}}%%
 sequenceDiagram
     participant U as 👤 User
     participant A as 🤖 Agent
