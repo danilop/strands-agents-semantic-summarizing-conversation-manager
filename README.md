@@ -251,33 +251,31 @@ Response: "You specifically asked about decorators and requested an example with
 ### Memory Flow Timeline
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "cScale0": "#E8F5E9", "cScale1": "#F3E5F5", "cScale2": "#FFF3E0"}}}%%
-timeline
-    title Conversation Lifecycle with Semantic Memory
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3"}}}%%
+graph LR
+    classDef phase1 fill:#E8F5E9,stroke:#388E3C,stroke-width:2px,color:#000
+    classDef overflow fill:#FFF3E0,stroke:#FF9800,stroke-width:2px,color:#000
+    classDef phase2 fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    classDef query fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
 
-    Messages 1-10 : Active conversation growing
-                  : Archived messages empty
-                  : All messages in context
+    M1[📝 Messages 1-10<br/><br/>• Active conversation growing<br/>• Archived messages empty<br/>• All messages in context]
 
-    Context Overflow : Messages 1-7 summarized
-                     : Messages 1-7 → archived messages
-                     : Messages 1-7 indexed with embeddings
-                     : Summary + messages 8-10 active
+    O1[⚠️ Context Overflow<br/><br/>• Messages 1-7 summarized<br/>• Messages 1-7 → archived<br/>• Messages 1-7 indexed<br/>• Summary + 8-10 active]
 
-    Messages 11-20 : New messages added
-                   : Summary + recent messages active
-                   : Archived messages has messages 1-7
+    M2[📝 Messages 11-20<br/><br/>• New messages added<br/>• Summary + recent active<br/>• Archived has 1-7]
 
-    Second Overflow : Messages 8-17 summarized
-                    : Messages 8-17 → archived messages
-                    : New summary + messages 18-20 active
-                    : Archived messages has messages 1-17
+    O2[⚠️ Second Overflow<br/><br/>• Messages 8-17 summarized<br/>• Messages 8-17 → archived<br/>• New summary + 18-20 active<br/>• Archived has 1-17]
 
-    Query Time : User asks about old topic
-               : Hook searches semantic index
-               : Retrieves relevant messages
-               : Enriches user message
-               : Agent responds with full context
+    Q[🔍 Query Time<br/><br/>• User asks old topic<br/>• Hook searches index<br/>• Retrieves messages<br/>• Enriches user message<br/>• Agent responds with context]
+
+    M1 -->|Time| O1
+    O1 -->|Continue| M2
+    M2 -->|Time| O2
+    O2 -->|Continue| Q
+
+    class M1,M2 phase1
+    class O1,O2 overflow
+    class Q query
 ```
 
 ## Architecture
