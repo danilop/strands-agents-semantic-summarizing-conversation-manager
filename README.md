@@ -251,7 +251,7 @@ Response: "You specifically asked about decorators and requested an example with
 ### Memory Flow Timeline
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#E3F2FD", "primaryTextColor": "#000", "primaryBorderColor": "#1976D2", "lineColor": "#2196F3", "cScale0": "#4CAF50", "cScale1": "#2196F3", "cScale2": "#FF9800"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "cScale0": "#E8F5E9", "cScale1": "#F3E5F5", "cScale2": "#FFF3E0"}}}%%
 timeline
     title Conversation Lifecycle with Semantic Memory
 
