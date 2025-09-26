@@ -52,7 +52,10 @@ from strands import Agent
 from semantic_conversation_manager import SemanticSummarizingConversationManager
 from semantic_memory_hook import SemanticMemoryHook
 
-# Create the conversation manager
+# Create the conversation manager with defaults
+conversation_manager = SemanticSummarizingConversationManager()  # Using defaults
+
+# Or use custom parameters in the initialization
 conversation_manager = SemanticSummarizingConversationManager(
     summary_ratio=0.3,                      # Summarize 30% of messages on overflow
     preserve_recent_messages=8,             # Keep 8 most recent messages
