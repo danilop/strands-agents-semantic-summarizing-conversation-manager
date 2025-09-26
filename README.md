@@ -258,7 +258,7 @@ Response: "You specifically asked about decorators and requested an example with
     'cScale1': '#7B1FA2',
     'cScale2': '#4CAF50',
     'cScale3': '#FF9800',
-    'cScale4': '#F44336',
+    'cScale4': '#E91E63',
     'cScaleLabel0': '#FFF',
     'cScaleLabel1': '#FFF',
     'cScaleLabel2': '#FFF',
