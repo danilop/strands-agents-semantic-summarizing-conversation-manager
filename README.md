@@ -285,22 +285,25 @@ timeline
 The system uses a clean layered architecture that eliminates complex connections:
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#fff", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FF5722"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#333", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0"}}}%%
 graph TB
     %% Define styles for each layer
     classDef userLayer fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
     classDef processLayer fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#000
-    classDef storageLayer fill:#E8F5E8,stroke:#388E3C,stroke-width:3px,color:#000
+    classDef storageLayer fill:#E8F5E9,stroke:#388E3C,stroke-width:3px,color:#000
+    classDef invisible fill:transparent,stroke:none
 
     %% Layer 1: User Interaction
     subgraph L1 [" 📱 User Interaction Layer "]
         User[👤 User]
+        Spacer1[ ]
         Agent[🤖 Agent]
     end
 
     %% Layer 2: Processing Orchestration
     subgraph L2 [" ⚙️ Processing Layer "]
         Hook[🔗 Memory Hook<br/><br/>• Intercepts messages<br/>• Searches semantic index<br/>• Enriches with context]
+        Spacer2[ ]
         CM[💭 Conversation Manager<br/><br/>• Context overflow detection<br/>• Summarization coordination<br/>• Storage orchestration]
     end
 
@@ -315,9 +318,10 @@ graph TB
     class User,Agent userLayer
     class Hook,CM processLayer
     class Active,State,Index storageLayer
+    class Spacer1,Spacer2 invisible
 
     %% Layer 1: User interaction
-    User <-->|Messages| Agent
+    User ---|Messages| Agent
 
     %% Processing connections
     Agent <-->|Intercept &<br/>Enrich| Hook
@@ -331,6 +335,12 @@ graph TB
     %% Memory retrieval (dashed lines from Hook)
     Hook -.->|Query| Index
     Hook -.->|Retrieve| State
+
+    %% Hide spacer connections
+    Spacer1 ~~~ User
+    Spacer1 ~~~ Agent
+    Spacer2 ~~~ Hook
+    Spacer2 ~~~ CM
 ```
 
 ## Process Flow
