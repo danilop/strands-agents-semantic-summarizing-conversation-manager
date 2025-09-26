@@ -251,34 +251,38 @@ Response: "You specifically asked about decorators and requested an example with
 ### Memory Flow Timeline
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#E3F2FD", "primaryTextColor": "#000", "primaryBorderColor": "#1976D2", "lineColor": "#2196F3", "secondaryColor": "#F3E5F5", "tertiaryColor": "#E8F5E9", "background": "#FFFFFF", "edgeLabelBackground": "#FFFFFF"}}}%%
-graph TD
-    %% Define styles for each phase
-    classDef initialPhase fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
-    classDef overflowPhase fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
-    classDef growthPhase fill:#E8F5E9,stroke:#388E3C,stroke-width:2px,color:#000
-    classDef queryPhase fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
-    classDef continuePhase fill:#FFEBEE,stroke:#D32F2F,stroke-width:2px,color:#000
+%%{init: {"timeline": {"numberSectionStyles": 5, "useMaxWidth": true}, "themeVariables": {"cScale0": "#E3F2FD", "cScale1": "#F3E5F5", "cScale2": "#E8F5E9", "cScale3": "#FFF3E0", "cScale4": "#FFEBEE"}}}%%
+timeline
+    title Conversation Lifecycle with Semantic Memory
 
-    %% Timeline Flow
-    Start([🚀 Start]) --> Phase1[📝 Initial Phase<br/>Messages 1-10<br/>• Active conversation growing<br/>• Archived messages empty<br/>• All messages in context]
+    section Initial Phase
+        Messages 1-10           : Active conversation growing
+                                : Archived messages empty
+                                : All messages in context
 
-    Phase1 --> Phase2[⚠️ First Overflow<br/>Context Full<br/>• Messages 1-7 summarized<br/>• Messages 1-7 → archived messages<br/>• Messages 1-7 indexed with embeddings<br/>• Summary + messages 8-10 active]
+    section First Overflow
+        Context Overflow        : Messages 1-7 summarized
+                                : Messages 1-7 → archived messages
+                                : Messages 1-7 indexed with embeddings
+                                : Summary + messages 8-10 active
 
-    Phase2 --> Phase3[📈 Continued Growth<br/>Messages 11-20<br/>• New messages added<br/>• Summary + recent messages active<br/>• Archived messages has messages 1-7]
+    section Continued Growth
+        Messages 11-20          : New messages added
+                                : Summary + recent messages active
+                                : Archived messages has messages 1-7
 
-    Phase3 --> Phase4[⚠️ Second Overflow<br/>Context Full Again<br/>• Messages 8-17 summarized<br/>• Messages 8-17 → archived messages<br/>• New summary + messages 18-20 active<br/>• Archived messages has messages 1-17]
+    section Second Overflow
+        Second Overflow         : Messages 8-17 summarized
+                                : Messages 8-17 → archived messages
+                                : New summary + messages 18-20 active
+                                : Archived messages has messages 1-17
 
-    Phase4 --> Phase5[🔍 Query & Retrieval<br/>User Asks About Old Topic<br/>• Hook searches semantic index<br/>• Retrieves relevant messages<br/>• Enriches user message<br/>• Agent responds with full context]
-
-    Phase5 --> Continue[🔄 Continues...]
-
-    %% Apply styles
-    class Phase1 initialPhase
-    class Phase2 overflowPhase
-    class Phase3 growthPhase
-    class Phase4 continuePhase
-    class Phase5 queryPhase
+    section Query & Retrieval
+        Query Time              : User asks about old topic
+                                : Hook searches semantic index
+                                : Retrieves relevant messages
+                                : Enriches user message
+                                : Agent responds with full context
 ```
 
 ## Architecture
