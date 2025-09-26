@@ -68,7 +68,7 @@ conversation_manager = SemanticSummarizingConversationManager(
     # Embedding model configuration (optional)
     embedding_model="all-MiniLM-L12-v2",    # Default: local sentence-transformers model
     # embedding_model="bedrock:amazon.titan-embed-text-v2:0",  # Alternative: AWS Bedrock
-    # aws_region="us-west-2",                # Optional: AWS region (uses boto3 default if not specified)
+    # aws_region="us-west-2",                # Optional: AWS Region (uses AWS SDK default if not specified)
     # embedding_dimensions=512,              # Optional: for models with variable dimensions
 )
 
