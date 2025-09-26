@@ -282,64 +282,55 @@ timeline
 
 ## Architecture
 
-The system consists of three main components that work together to provide hybrid memory:
+The system uses a clean layered architecture that eliminates complex connections:
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ff6b6b", "primaryTextColor": "#fff", "primaryBorderColor": "#ff5252", "lineColor": "#333", "secondaryColor": "#4ecdc4", "tertiaryColor": "#ffe66d", "background": "#f8f9fa", "mainBkg": "#ffffff", "secondBkg": "#f1f3f4"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#fff", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FF5722"}}}%%
 graph TB
-    %% Define node styles
-    classDef agentStyle fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
-    classDef memoryStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
-    classDef storageStyle fill:#e8f5e8,stroke:#388e3c,stroke-width:2px,color:#000
+    %% Define styles for each layer
+    classDef userLayer fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
+    classDef processLayer fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#000
+    classDef storageLayer fill:#E8F5E8,stroke:#388E3C,stroke-width:3px,color:#000
 
-    subgraph SA["🤖 Strands Agent"]
-        A[Agent]
-        B[Active Messages]
-        C[K/V State]
-        D[Hooks System]
+    %% Layer 1: User Interaction
+    subgraph L1 [" 📱 User Interaction Layer "]
+        User[👤 User]
+        Agent[🤖 Agent]
     end
 
-    subgraph SMS["🧠 Semantic Memory System"]
-        E[Conversation<br/>Manager]
-        F[Memory Hook]
-        G[Search Engine]
+    %% Layer 2: Processing Orchestration
+    subgraph L2 [" ⚙️ Processing Layer "]
+        Hook[🔗 Memory Hook<br/><br/>• Intercepts messages<br/>• Searches semantic index<br/>• Enriches with context]
+        CM[💭 Conversation Manager<br/><br/>• Context overflow detection<br/>• Summarization coordination<br/>• Storage orchestration]
     end
 
-    subgraph SI["💾 Storage & Indexing"]
-        H[Semantic Index<br/>📊 Embeddings]
-        I[Agent State<br/>📝 archived_messages]
-        J[Summary<br/>💬 Active Conversation]
+    %% Layer 3: Storage Components
+    subgraph L3 [" 💾 Storage Layer "]
+        Active[📝 Active Messages<br/><br/>Current visible<br/>conversation]
+        State[🗄️ Agent State<br/><br/>archived_messages<br/>full history]
+        Index[📊 Semantic Index<br/><br/>embeddings<br/>searchable]
     end
 
     %% Apply styles
-    class A,B,C,D agentStyle
-    class E,F,G memoryStyle
-    class H,I,J storageStyle
+    class User,Agent userLayer
+    class Hook,CM processLayer
+    class Active,State,Index storageLayer
 
-    %% Internal connections
-    A --> B
-    A --> C
-    A --> D
+    %% Layer 1: User interaction
+    User <-->|Messages| Agent
 
-    %% System connections
-    A -.-> E
-    D --> F
-    E --> G
-    E --> H
-    E --> I
-    E --> J
-    F --> G
-    G --> H
+    %% Processing connections
+    Agent <-->|Intercept &<br/>Enrich| Hook
+    Agent -->|Context<br/>Overflow| CM
 
-    %% Flow connections
-    B -->|Context Overflow| E
-    E -->|Summarize & Store| I
-    E -->|Index Messages| H
-    E -->|Create Summary| J
-    J --> B
-    F -->|Search Query| G
-    G -->|Relevant Messages| F
-    F -->|Enrich Message| A
+    %% Storage operations (solid lines from CM)
+    CM -->|Update| Active
+    CM -->|Archive| State
+    CM -->|Index| Index
+
+    %% Memory retrieval (dashed lines from Hook)
+    Hook -.->|Query| Index
+    Hook -.->|Retrieve| State
 ```
 
 ## Process Flow
