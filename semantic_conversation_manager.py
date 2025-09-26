@@ -74,7 +74,7 @@ class SemanticSummarizingConversationManager(ConversationManager):
         max_num_archived_messages: Optional[int] = None,
         max_memory_archived_messages: Optional[int] = None,
         embedding_model: str = "all-MiniLM-L12-v2",
-        bedrock_region: Optional[str] = None,
+        aws_region: Optional[str] = None,
         embedding_dimensions: Optional[int] = None,
     ):
         """Initialize the conversation manager with semantic memory.
@@ -102,7 +102,7 @@ class SemanticSummarizingConversationManager(ConversationManager):
                 - "model_name" or "local:model_name" for sentence-transformers models
                 - "bedrock:model_id" for AWS Bedrock models (e.g., "bedrock:amazon.titan-embed-text-v2:0")
                 Defaults to "all-MiniLM-L12-v2".
-            bedrock_region: AWS region for Bedrock models. Only required when using Bedrock models.
+            aws_region: AWS region for Bedrock models. Optional, uses boto3 default if not specified.
             embedding_dimensions: Dimensions for models that support variable dimensions.
                 For example, Titan v2 supports 256, 512, or 1024 dimensions.
         """
@@ -135,7 +135,7 @@ class SemanticSummarizingConversationManager(ConversationManager):
 
         # Store embedding configuration
         self._embedding_model = embedding_model
-        self._bedrock_region = bedrock_region
+        self._aws_region = aws_region
         self._embedding_dimensions = embedding_dimensions
 
     def _initialize_semantic_index(self) -> SemanticSearch:
@@ -144,7 +144,7 @@ class SemanticSummarizingConversationManager(ConversationManager):
             # Create search config with embedding model settings
             config = SearchConfig(
                 embedding_model=self._embedding_model,
-                bedrock_region=self._bedrock_region,
+                aws_region=self._aws_region,
                 embedding_dimensions=self._embedding_dimensions,
                 auto_index=True,
             )
@@ -180,7 +180,7 @@ class SemanticSummarizingConversationManager(ConversationManager):
 
         # Restore embedding configuration if available
         self._embedding_model = state.get("embedding_model", self._embedding_model)
-        self._bedrock_region = state.get("bedrock_region", self._bedrock_region)
+        self._aws_region = state.get("aws_region", self._aws_region)
         self._embedding_dimensions = state.get(
             "embedding_dimensions", self._embedding_dimensions
         )
@@ -202,7 +202,7 @@ class SemanticSummarizingConversationManager(ConversationManager):
             "summary_message": self._summary_message,
             "message_id_counter": self._message_id_counter,
             "embedding_model": self._embedding_model,
-            "bedrock_region": self._bedrock_region,
+            "aws_region": self._aws_region,
             "embedding_dimensions": self._embedding_dimensions,
             **super().get_state(),
         }

@@ -92,7 +92,7 @@ class SearchConfig:
         cache_dir: Optional[str] = "./cache",
         auto_index: bool = True,
         batch_size: int = 32,
-        bedrock_region: Optional[str] = None,
+        aws_region: Optional[str] = None,
         embedding_dimensions: Optional[int] = None,
     ):
         """
@@ -108,7 +108,7 @@ class SearchConfig:
             cache_dir: Directory for caching embeddings
             auto_index: Automatically index documents when added
             batch_size: Batch size for encoding documents
-            bedrock_region: AWS region for Bedrock models
+            aws_region: AWS region for Bedrock models. Optional, uses boto3 default if not specified.
             embedding_dimensions: Dimensions for models that support variable dimensions
         """
         self.embedding_model = embedding_model
@@ -118,7 +118,7 @@ class SearchConfig:
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.auto_index = auto_index
         self.batch_size = batch_size
-        self.bedrock_region = bedrock_region
+        self.aws_region = aws_region
         self.embedding_dimensions = embedding_dimensions
 
         if self.cache_dir:
@@ -176,7 +176,7 @@ class SemanticSearch(SemanticSearchInterface):
         self._encoder = create_embedding_provider(
             model_spec=self.config.embedding_model,
             device=self.config.device,
-            region_name=self.config.bedrock_region,
+            region_name=self.config.aws_region,
             dimensions=self.config.embedding_dimensions,
         )
 
@@ -550,7 +550,7 @@ class SemanticSearch(SemanticSearchInterface):
             "config": {
                 "embedding_model": self.config.embedding_model,
                 "cross_encoder_model": self.config.cross_encoder_model,
-                "bedrock_region": self.config.bedrock_region,
+                "aws_region": self.config.aws_region,
                 "embedding_dimensions": self.config.embedding_dimensions,
                 "model_info": {
                     "provider": model_info.provider,
@@ -600,7 +600,7 @@ class SemanticSearch(SemanticSearchInterface):
                 cross_encoder_model=saved_config.get(
                     "cross_encoder_model", "cross-encoder/ms-marco-MiniLM-L-12-v2"
                 ),
-                bedrock_region=saved_config.get("bedrock_region"),
+                aws_region=saved_config.get("aws_region"),
                 embedding_dimensions=saved_config.get("embedding_dimensions"),
             )
 

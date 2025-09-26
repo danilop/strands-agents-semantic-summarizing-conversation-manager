@@ -46,13 +46,13 @@ from message_utils import extract_text_content
 
 
 def create_semantic_agent(
-    embedding_model="all-MiniLM-L12-v2", bedrock_region=None, embedding_dimensions=None
+    embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None
 ):
     """Create and configure a Strands agent with semantic memory capabilities.
 
     Args:
         embedding_model: Model specification for embeddings
-        bedrock_region: AWS region for Bedrock models
+        aws_region: AWS region for Bedrock models
         embedding_dimensions: Dimensions for models that support it
     """
 
@@ -62,7 +62,7 @@ def create_semantic_agent(
     print("=" * 70)
     print(f"Embedding Model: {embedding_model}")
     if embedding_model.startswith("bedrock:"):
-        print(f"AWS Region: {bedrock_region or 'default'}")
+        print(f"AWS Region: {aws_region or 'default'}")
         if embedding_dimensions:
             print(f"Embedding Dimensions: {embedding_dimensions}")
     print("=" * 70 + "\n")
@@ -75,7 +75,7 @@ def create_semantic_agent(
         semantic_search_top_k=3,  # Retrieve top 3 relevant historical messages
         semantic_search_min_score=-2.5,  # Lower threshold for demonstration
         embedding_model=embedding_model,
-        bedrock_region=bedrock_region,
+        aws_region=aws_region,
         embedding_dimensions=embedding_dimensions,
     )
     print("✓ Created conversation manager with semantic memory")
@@ -109,13 +109,13 @@ def create_semantic_agent(
 
 
 def demonstrate_reference_preservation(
-    embedding_model="all-MiniLM-L12-v2", bedrock_region=None, embedding_dimensions=None
+    embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None
 ):
     """Demonstrate that reference numbers excluded from summaries are still retrievable via semantic memory.
 
     Args:
         embedding_model: Model specification for embeddings
-        bedrock_region: AWS region for Bedrock models
+        aws_region: AWS region for Bedrock models
         embedding_dimensions: Dimensions for models that support it
     """
 
@@ -132,7 +132,7 @@ def demonstrate_reference_preservation(
     # Create a fresh agent for this test
     agent = create_semantic_agent(
         embedding_model=embedding_model,
-        bedrock_region=bedrock_region,
+        aws_region=aws_region,
         embedding_dimensions=embedding_dimensions,
     )
 
@@ -390,7 +390,7 @@ def demonstrate_reference_preservation(
 
 
 def test_embedding_provider(
-    embedding_model, bedrock_region=None, embedding_dimensions=None
+    embedding_model, aws_region=None, embedding_dimensions=None
 ):
     """Test the embedding provider configuration."""
     print("\n" + "=" * 70)
@@ -404,7 +404,7 @@ def test_embedding_provider(
         # Create provider
         provider = create_embedding_provider(
             model_spec=embedding_model,
-            region_name=bedrock_region,
+            region_name=aws_region,
             dimensions=embedding_dimensions,
         )
 
@@ -452,13 +452,13 @@ def run_comparison_demo():
         {
             "name": "Local Embeddings (sentence-transformers)",
             "embedding_model": "all-MiniLM-L12-v2",
-            "bedrock_region": None,
+            "aws_region": None,
             "embedding_dimensions": None,
         },
         {
             "name": "AWS Bedrock Embeddings (Titan V2)",
             "embedding_model": "bedrock:amazon.titan-embed-text-v2:0",
-            "bedrock_region": "us-east-1",
+            "aws_region": "us-east-1",
             "embedding_dimensions": 1024,
         },
     ]
@@ -475,7 +475,7 @@ def run_comparison_demo():
             # Test embedding provider first
             success = test_embedding_provider(
                 config["embedding_model"],
-                config["bedrock_region"],
+                config["aws_region"],
                 config["embedding_dimensions"],
             )
 
@@ -498,7 +498,7 @@ def run_comparison_demo():
             start_time = time.time()
             demonstrate_reference_preservation(
                 embedding_model=config["embedding_model"],
-                bedrock_region=config["bedrock_region"],
+                aws_region=config["aws_region"],
                 embedding_dimensions=config["embedding_dimensions"],
             )
             end_time = time.time()
@@ -610,7 +610,7 @@ def main():
     # Run the full demonstration
     demonstrate_reference_preservation(
         embedding_model=embedding_model,
-        bedrock_region=args.region,
+        aws_region=args.region,
         embedding_dimensions=args.dimensions,
     )
 
