@@ -115,7 +115,7 @@ When context overflows, older messages are summarized for the active conversatio
 *When the conversation starts, archived messages are empty*
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#fff", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FF5722"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#000", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFF3E0"}}}%%
 graph LR
     %% Node styles
     classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
@@ -165,7 +165,7 @@ Response: Based on the active conversation context
 *After context overflow triggers summarization, archived messages become available for retrieval*
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#fff", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FF5722"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#000", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFF3E0"}}}%%
 graph LR
     %% Node styles
     classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
@@ -285,7 +285,7 @@ timeline
 The system uses a clean layered architecture that eliminates complex connections:
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#333", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#F5F5F5", "primaryTextColor": "#000", "primaryBorderColor": "#9E9E9E", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FFF3E0", "edgeLabelBackground": "#FFFFFF"}}}%%
 graph TB
     %% Define styles for each layer
     classDef userLayer fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
