@@ -100,16 +100,182 @@ print(agent.conversation_manager.get_memory_usage_summary())
 
 ## How It Works
 
-1. **Normal Conversation**: Messages are added to the conversation as usual
-2. **Context Overflow**: When the context gets too long, older messages are:
-   - Summarized into a single summary message for the active conversation
-   - Stored in full in the agent's K/V state
-   - Indexed in the semantic search engine
-3. **Query Time**: When a new user message arrives:
-   - The hook searches for relevant historical messages
-   - Includes surrounding messages based on `message_context_radius`
-   - Prepends the context to the user's message
-4. **Response**: The agent sees both the current question and relevant history
+### Overview
+
+The system maintains two types of memory:
+1. **Active conversation** - Recent messages visible to the agent
+2. **Semantic memory** - Archived messages stored with embeddings for intelligent retrieval
+
+When context overflows, older messages are summarized for the active conversation but preserved in full in semantic memory. A hook automatically enriches new user messages with relevant historical context.
+
+### Phase 1: Before First Summarization
+*When the conversation starts, semantic memory is empty*
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#fff", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FF5722"}}}%%
+graph LR
+    %% Node styles
+    classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
+    classDef agentStyle fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#000
+    classDef activeStyle fill:#E8F5E9,stroke:#388E3C,stroke-width:3px,color:#000
+    classDef emptyStyle fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,stroke-dasharray:5 5,color:#666
+    classDef hookStyle fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+
+    %% Nodes
+    User[👤 User]
+    Hook[🔗 Hook]
+    Agent[🤖 Agent]
+    ActiveConv[📝 Active Conversation<br/><br/>Message 1: Hello<br/>Message 2: Hi there<br/>Message 3: Tell me about X<br/>Message 4: X is...]
+    SemanticMemory[🗄️ Semantic Memory<br/><br/>EMPTY]
+    SemanticIndex[📊 Semantic Index<br/><br/>EMPTY]
+
+    %% Connections with labels
+    User -->|"1. New message:<br/>'What about Y?'"| Hook
+    Hook -->|"2. Check semantic memory<br/>(finds nothing)"| SemanticMemory
+    Hook -->|"3. Pass original message<br/>(no enrichment)"| Agent
+    Agent -->|"4. Read context"| ActiveConv
+    Agent -->|"5. Generate response<br/>using only active messages"| User
+
+    %% Apply styles
+    class User userStyle
+    class Agent agentStyle
+    class ActiveConv activeStyle
+    class SemanticMemory,SemanticIndex emptyStyle
+    class Hook hookStyle
+
+    %% Notes
+    ActiveConv -.- Note1[All messages fit<br/>in context window]
+    SemanticMemory -.- Note2[No archived<br/>messages yet]
+
+    style Note1 fill:#FFFFFF,stroke:#999,stroke-width:1px,stroke-dasharray:3 3,color:#666
+    style Note2 fill:#FFFFFF,stroke:#999,stroke-width:1px,stroke-dasharray:3 3,color:#666
+```
+
+**Example:**
+```
+User: "Tell me about Python decorators"
+Agent sees: Just the current message and recent conversation (messages 1-4)
+Response: Based on the active conversation context
+```
+
+### Phase 2: After Summarization(s)
+*After context overflow triggers summarization, semantic memory becomes active*
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#4CAF50", "primaryTextColor": "#fff", "primaryBorderColor": "#388E3C", "lineColor": "#2196F3", "secondaryColor": "#FFC107", "tertiaryColor": "#FF5722"}}}%%
+graph LR
+    %% Node styles
+    classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
+    classDef agentStyle fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#000
+    classDef activeStyle fill:#E8F5E9,stroke:#388E3C,stroke-width:3px,color:#000
+    classDef populatedStyle fill:#FFF3E0,stroke:#FF9800,stroke-width:3px,color:#000
+    classDef hookStyle fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    classDef enrichedStyle fill:#E1F5FE,stroke:#0288D1,stroke-width:3px,color:#000
+
+    %% Nodes
+    User[👤 User]
+    Hook[🔗 Hook]
+    Agent[🤖 Agent]
+    ActiveConv[📝 Active Conversation<br/><br/>Summary: Topics A, B, C...<br/>Message 21: About Z<br/>Message 22: Z means...<br/>Message 23: More on Z]
+    SemanticMemory[🗄️ Semantic Memory<br/><br/>Message 1: Hello<br/>Message 2: Hi there<br/>...<br/>Message 20: About Y]
+    SemanticIndex[📊 Semantic Index<br/><br/>Embeddings for<br/>messages 1-20]
+    EnrichedMsg[💬 Enriched Message]
+
+    %% Connections with detailed labels
+    User -->|"1. New message:<br/>'What exactly did I<br/>say about decorators?'"| Hook
+    Hook -->|"2. Query semantic index<br/>with embeddings"| SemanticIndex
+    SemanticIndex -->|"3. Return relevant<br/>message IDs<br/>(e.g., 5, 6, 7)"| Hook
+    Hook -->|"4. Retrieve exact<br/>messages + context<br/>(radius = 2)"| SemanticMemory
+    SemanticMemory -->|"5. Return messages<br/>3-9 (with overlap merge)"| Hook
+    Hook -->|"6. Create enriched message"| EnrichedMsg
+    EnrichedMsg -->|"7. Pass augmented<br/>message to agent"| Agent
+    Agent -->|"8. Read current<br/>context"| ActiveConv
+    Agent -->|"9. Generate response<br/>with full history"| User
+
+    %% Apply styles
+    class User userStyle
+    class Agent agentStyle
+    class ActiveConv activeStyle
+    class SemanticMemory,SemanticIndex populatedStyle
+    class Hook hookStyle
+    class EnrichedMsg enrichedStyle
+
+    %% Enriched message example
+    EnrichedMsg -.- ExampleMsg[<b>Enriched Message:</b><br/>---Previous Context---<br/>Message 5: Tell me about decorators<br/>Message 6: Decorators are functions...<br/>Message 7: @decorator syntax<br/>---End Context---<br/>Current: What exactly did I say?]
+
+    style ExampleMsg fill:#E1F5FE,stroke:#0288D1,stroke-width:1px,stroke-dasharray:3 3,color:#000,text-align:left
+```
+
+**Example with actual messages:**
+```
+User: "What exactly did I say about decorators?"
+
+Hook enriches the message to:
+"Based on our previous conversation, these earlier exchanges may be relevant:
+---Previous Context---
+[Message 5, user]: Tell me about Python decorators
+[Message 6, assistant]: Python decorators are functions that modify...
+[Message 7, user]: Can you show an example with @property?
+---End Previous Context---
+Current question: What exactly did I say about decorators?"
+
+Agent sees: Enriched message + current active conversation (summary + recent messages)
+Response: "You specifically asked about decorators and requested an example with @property..."
+```
+
+### Key Components Explained
+
+1. **Agent State Storage**
+   - `archived_messages`: Full text of all historical messages
+   - Stored in agent's K/V state for persistence
+   - Never lost, even after summarization
+
+2. **Semantic Index**
+   - Embeddings for each archived message
+   - Enables similarity search
+   - Built incrementally as messages are archived
+
+3. **Context Radius**
+   - When finding relevant message N, also includes N-2, N-1, N+1, N+2
+   - Provides surrounding context for better understanding
+   - Overlapping ranges are automatically merged
+
+4. **Summary Generation**
+   - Older messages compressed into a summary
+   - Summary replaces original messages in active conversation
+   - Original messages preserved in semantic memory
+
+### Memory Flow Timeline
+
+```mermaid
+%%{init: {"theme": "base"}}%%
+timeline
+    title Conversation Lifecycle with Semantic Memory
+
+    Messages 1-10 : Active conversation growing
+                  : Semantic memory empty
+                  : All messages in context
+
+    Context Overflow : Messages 1-7 summarized
+                     : Messages 1-7 → semantic memory
+                     : Messages 1-7 indexed with embeddings
+                     : Summary + messages 8-10 active
+
+    Messages 11-20 : New messages added
+                   : Summary + recent messages active
+                   : Semantic memory has messages 1-7
+
+    Second Overflow : Messages 8-17 summarized
+                    : Messages 8-17 → semantic memory
+                    : New summary + messages 18-20 active
+                    : Semantic memory has messages 1-17
+
+    Query Time : User asks about old topic
+               : Hook searches semantic index
+               : Retrieves relevant messages
+               : Enriches user message
+               : Agent responds with full context
+```
 
 ## Architecture
 
