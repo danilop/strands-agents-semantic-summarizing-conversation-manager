@@ -254,16 +254,16 @@ Response: "You specifically asked about decorators and requested an example with
 %%{init: {
   'theme': 'base',
   'themeVariables': {
-    'cScale0': '#E3F2FD',
-    'cScale1': '#F3E5F5',
-    'cScale2': '#E8F5E9',
-    'cScale3': '#FFF3E0',
-    'cScale4': '#FFEBEE',
-    'cScaleLabel0': '#000',
-    'cScaleLabel1': '#000',
-    'cScaleLabel2': '#000',
-    'cScaleLabel3': '#000',
-    'cScaleLabel4': '#000'
+    'cScale0': '#2196F3',
+    'cScale1': '#9C27B0',
+    'cScale2': '#2196F3',
+    'cScale3': '#9C27B0',
+    'cScale4': '#2196F3',
+    'cScaleLabel0': '#FFF',
+    'cScaleLabel1': '#FFF',
+    'cScaleLabel2': '#FFF',
+    'cScaleLabel3': '#FFF',
+    'cScaleLabel4': '#FFF'
   }
 }}%%
 timeline
