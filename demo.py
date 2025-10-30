@@ -750,21 +750,7 @@ def demonstrate_s3_persistence_and_restore(
         # Verify archived messages were restored
         restored_archived_count = len(restored_agent.state.get("archived_messages") or [])
         print(f"✓ Restored {restored_archived_count} archived messages from S3")
-        
-        # IMPORTANT: The conversation manager's restore_from_session doesn't have access to
-        # agent.state['archived_messages'], so we need to manually rebuild the semantic index
-        if restored_archived_count > 0:
-            print(f"\n🔧 Manually rebuilding semantic index from {restored_archived_count} archived messages...")
-            # Initialize the semantic index
-            restored_agent.conversation_manager._semantic_index = restored_agent.conversation_manager._initialize_semantic_index()
-            # Initialize container and restore messages  
-            container = restored_agent.conversation_manager._ensure_container()
-            archived_messages = restored_agent.state.get("archived_messages") or []
-            for msg_data in archived_messages:
-                container.add_message(msg_data)
-            print(f"✓ Semantic index manually rebuilt with {restored_agent.conversation_manager._semantic_index.size()} documents")
-        else:
-            print("⚠️  No archived messages to restore")
+        print("✓ Semantic index will be automatically rebuilt on first query (handled by SemanticMemoryHook)")
         
         if restored_archived_count != archived_count:
             print(f"❌ Mismatch: saved {archived_count} but restored {restored_archived_count}")

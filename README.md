@@ -232,19 +232,8 @@ restored_agent = Agent(
     )
 )
 
-# IMPORTANT: Manually rebuild semantic index after restoration
-# (Required because agent.state['archived_messages'] is not automatically
-# passed to conversation manager's restore_from_session method)
-archived_messages = restored_agent.state.get("archived_messages") or []
-if archived_messages:
-    restored_agent.conversation_manager._semantic_index = (
-        restored_agent.conversation_manager._initialize_semantic_index()
-    )
-    container = restored_agent.conversation_manager._ensure_container()
-    for msg_data in archived_messages:
-        container.add_message(msg_data)
-
-# Now the restored agent has full access to semantic memory
+# The semantic index is automatically rebuilt on first query by SemanticMemoryHook
+# No manual initialization needed!
 restored_agent("What was that important detail?")  # Will recall "XYZ"
 ```
 

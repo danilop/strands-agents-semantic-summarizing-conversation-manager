@@ -103,6 +103,10 @@ class SemanticMemoryHook(HookProvider):
             logger.debug("No text content found in user message")
             return
 
+        # AUTOMATIC: Ensure semantic index is initialized (handles S3 restoration case)
+        # If the index doesn't exist but we have archived messages, rebuild it
+        self._ensure_semantic_index_initialized(conv_manager, agent)
+
         # Search for relevant historical messages
         relevant_messages = conv_manager.search_relevant_messages(agent, query)
 
@@ -259,3 +263,37 @@ class SemanticMemoryHook(HookProvider):
                 return True
 
         return False
+
+    def _ensure_semantic_index_initialized(self, conv_manager, agent: "Agent") -> None:
+        """Ensure semantic index is initialized, rebuilding from archived messages if needed.
+        
+        This handles the S3 restoration case where archived messages are restored to agent.state
+        but the semantic index hasn't been rebuilt yet.
+        
+        Args:
+            conv_manager: The semantic conversation manager
+            agent: The agent instance
+        """
+        # Check if semantic index exists and is initialized
+        if hasattr(conv_manager, '_semantic_index') and conv_manager._semantic_index is not None:
+            # Index exists, check if it has any documents
+            if conv_manager._semantic_index.size() > 0:
+                return  # Index is already initialized with data
+        
+        # Check if we have archived messages that need to be indexed
+        archived_messages = agent.state.get("archived_messages")
+        if not archived_messages:
+            return  # No archived messages to restore
+        
+        logger.info(f"Auto-initializing semantic index from {len(archived_messages)} archived messages")
+        
+        # Initialize the semantic index
+        if not hasattr(conv_manager, '_semantic_index') or conv_manager._semantic_index is None:
+            conv_manager._semantic_index = conv_manager._initialize_semantic_index()
+        
+        # Initialize container and restore messages
+        container = conv_manager._ensure_container()
+        for msg_data in archived_messages:
+            container.add_message(msg_data)
+        
+        logger.info(f"Semantic index auto-initialized with {conv_manager._semantic_index.size()} documents")
