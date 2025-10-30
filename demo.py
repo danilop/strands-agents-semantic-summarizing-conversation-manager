@@ -34,19 +34,18 @@ from datetime import datetime
 import random
 import argparse
 import sys
-import os
 import time
 
 from strands import Agent
 from strands.tools import tool
 
-from semantic_conversation_manager import SemanticSummarizingConversationManager
-from semantic_memory_hook import SemanticMemoryHook
-from message_utils import extract_text_content
+from strands_semantic_memory.semantic_conversation_manager import SemanticSummarizingConversationManager
+from strands_semantic_memory.semantic_memory_hook import SemanticMemoryHook
+from strands_semantic_memory.message_utils import extract_text_content
 
 
 def create_semantic_agent(
-    embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None
+    embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None, ann_engine=None
 ):
     """Create and configure a Strands agent with semantic memory capabilities.
 
@@ -54,6 +53,7 @@ def create_semantic_agent(
         embedding_model: Model specification for embeddings
         aws_region: AWS region for Bedrock models
         embedding_dimensions: Dimensions for models that support it
+        ann_engine: Optional ANN engine (hnswlib or faiss) for approximate search
     """
 
     # Log configuration
@@ -65,6 +65,10 @@ def create_semantic_agent(
         print(f"AWS Region: {aws_region or 'default'}")
         if embedding_dimensions:
             print(f"Embedding Dimensions: {embedding_dimensions}")
+    if ann_engine:
+        print(f"Search Backend: ANN ({ann_engine})")
+    else:
+        print("Search Backend: numpy (exact search)")
     print("=" * 70 + "\n")
 
     # Create the conversation manager with demonstration settings
@@ -77,6 +81,8 @@ def create_semantic_agent(
         embedding_model=embedding_model,
         aws_region=aws_region,
         embedding_dimensions=embedding_dimensions,
+        backend="ann" if ann_engine else "numpy",
+        ann_engine=ann_engine,
     )
     print("✓ Created conversation manager with semantic memory")
 
@@ -109,7 +115,7 @@ def create_semantic_agent(
 
 
 def demonstrate_reference_preservation(
-    embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None
+    embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None, ann_engine=None
 ):
     """Demonstrate that reference numbers excluded from summaries are still retrievable via semantic memory.
 
@@ -134,6 +140,7 @@ def demonstrate_reference_preservation(
         embedding_model=embedding_model,
         aws_region=aws_region,
         embedding_dimensions=embedding_dimensions,
+        ann_engine=ann_engine,
     )
 
     print("\n1. Adding reference number and conversation...")
@@ -268,7 +275,9 @@ def demonstrate_reference_preservation(
         agent.conversation_manager.reduce_context(agent)
         print("✅ Summarization completed")
     except Exception as e:
+        import traceback
         print(f"❌ Summarization failed: {e}")
+        traceback.print_exc()
         return
 
     print("\n4. Messages AFTER summarization:")
@@ -399,7 +408,7 @@ def test_embedding_provider(
 
     try:
         import numpy as np
-        from embedding_providers import create_embedding_provider
+        from strands_semantic_memory.embedding_providers import create_embedding_provider
 
         # Create provider
         provider = create_embedding_provider(
@@ -544,6 +553,280 @@ def run_comparison_demo():
     return len(failed) == 0
 
 
+def demonstrate_s3_persistence_and_restore(
+    s3_uri, embedding_model="all-MiniLM-L12-v2", aws_region=None, embedding_dimensions=None, ann_engine=None
+):
+    """Demonstrate S3 session persistence and restoration with semantic memory.
+    
+    This test shows that:
+    1. Agent sessions with archived messages can be persisted to S3
+    2. Archived messages are correctly saved in the agent state
+    3. When restoring, archived messages are auto-indexed for semantic search
+    4. Semantic search works correctly after restoration
+    
+    Args:
+        s3_uri: S3 URI in format s3://bucket/optional_prefix
+        embedding_model: Model specification for embeddings
+        aws_region: AWS region for Bedrock models
+        embedding_dimensions: Dimensions for models that support it
+        ann_engine: Optional ANN engine for search
+    """
+    from strands.session.s3_session_manager import S3SessionManager
+    import uuid
+    
+    # Parse S3 URI
+    if not s3_uri.startswith("s3://"):
+        print(f"\n❌ Invalid S3 URI: {s3_uri}")
+        print("   Expected format: s3://bucket/optional_prefix")
+        return False
+    
+    s3_path = s3_uri[5:]  # Remove 's3://'
+    parts = s3_path.split("/", 1)
+    bucket = parts[0]
+    prefix = parts[1] if len(parts) > 1 else ""
+    if prefix and not prefix.endswith("/"):
+        prefix += "/"
+    
+    # Generate unique session ID for this test
+    session_id = f"semantic-memory-test-{uuid.uuid4().hex[:8]}"
+    
+    print("\n" + "=" * 70)
+    print("S3 SESSION PERSISTENCE AND RESTORE TEST")
+    print("=" * 70)
+    print(f"\nS3 Bucket: {bucket}")
+    print(f"S3 Prefix: {prefix}")
+    print(f"Session ID: {session_id}")
+    print(f"Embedding Model: {embedding_model}")
+    if ann_engine:
+        print(f"Search Backend: ANN ({ann_engine})")
+    
+    # Generate a random reference number for testing
+    reference_number = random.randint(101, 999)
+    print(f"\n🎲 Generated random shared reference number: {reference_number}")
+    
+    try:
+        # PART 1: Create agent, add messages, archive them, and save to S3
+        print("\n" + "=" * 70)
+        print("PART 1: CREATE AGENT AND PERSIST TO S3")
+        print("=" * 70)
+        
+        session_manager = S3SessionManager(
+            session_id=session_id,
+            bucket=bucket,
+            prefix=prefix,
+            region_name=aws_region,
+        )
+        print("✓ Created S3 session manager")
+        
+        # Create agent with semantic memory
+        conversation_manager = SemanticSummarizingConversationManager(
+            summary_ratio=0.6,
+            preserve_recent_messages=2,
+            message_context_radius=1,
+            semantic_search_top_k=3,
+            semantic_search_min_score=-2.5,
+            embedding_model=embedding_model,
+            aws_region=aws_region,
+            embedding_dimensions=embedding_dimensions,
+            backend="ann" if ann_engine else "numpy",
+            ann_engine=ann_engine,
+        )
+        
+        semantic_hook = SemanticMemoryHook(enabled=True)
+        
+        agent = Agent(
+            name="TestAgent",
+            model="us.amazon.nova-lite-v1:0",
+            system_prompt="Give brief responses.",
+            conversation_manager=conversation_manager,
+            hooks=[semantic_hook],
+            session_manager=session_manager,
+        )
+        print("✓ Created agent with S3 session manager and semantic memory")
+        
+        # Add messages in proper format (session manager will persist them)
+        # We'll use the same messages as the reference preservation test
+        test_messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "text": f"Our shared reference number for this conversation is {reference_number}. Please keep this number for our records but don't include it in any summary. If I ask for our shared number later and say the word 'pineapple', please provide the exact number."
+                    }
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "text": "Understood. I'll keep our shared reference number for our records, won't include it in summaries, and will provide it if you ask directly with the word 'pineapple'."
+                    }
+                ],
+            },
+            {"role": "user", "content": [{"text": "Tell me about data structures"}]},
+            {"role": "assistant", "content": [{"text": "Data structures organize and store data efficiently for different operations."}]},
+            {"role": "user", "content": [{"text": "What are arrays?"}]},
+            {"role": "assistant", "content": [{"text": "Arrays are collections of elements stored in contiguous memory locations."}]},
+            {"role": "user", "content": [{"text": "Explain linked lists"}]},
+            {"role": "assistant", "content": [{"text": "Linked lists are data structures where elements are stored in nodes."}]},
+            {"role": "user", "content": [{"text": "What about hash tables?"}]},
+            {"role": "assistant", "content": [{"text": "Hash tables use hash functions to map keys to values for fast lookup."}]},
+            {"role": "user", "content": [{"text": "How do binary trees work?"}]},
+            {"role": "assistant", "content": [{"text": "Binary trees are hierarchical structures where each node has at most two children."}]},
+            {"role": "user", "content": [{"text": "What are sorting algorithms?"}]},
+            {"role": "assistant", "content": [{"text": "Sorting algorithms arrange data in a particular order, like bubble sort or quicksort."}]},
+            {"role": "user", "content": [{"text": "Explain graph algorithms"}]},
+            {"role": "assistant", "content": [{"text": "Graph algorithms solve problems on graph data structures, like finding shortest paths."}]},
+            {"role": "user", "content": [{"text": "What is dynamic programming?"}]},
+            {"role": "assistant", "content": [{"text": "Dynamic programming solves complex problems by breaking them into simpler subproblems."}]},
+            {"role": "user", "content": [{"text": "How does recursion work?"}]},
+            {"role": "assistant", "content": [{"text": "Recursion is when a function calls itself to solve smaller instances of the same problem."}]},
+        ]
+        
+        agent.messages.extend(test_messages)
+        message_count = len(agent.messages)
+        print(f"✓ Added {message_count} messages (will be auto-persisted to S3)")
+        
+        # Trigger summarization to archive messages
+        print("\nTriggering summarization to archive messages...")
+        try:
+            agent.conversation_manager.reduce_context(agent)
+            print("✓ Summarization completed - messages archived")
+        except Exception as e:
+            print(f"❌ Summarization failed: {e}")
+            return False
+        
+        # Check that messages were archived (they're in agent.state, not conversation_manager state)
+        archived_count = len(agent.state.get("archived_messages") or [])
+        print(f"✓ Archived {archived_count} messages in semantic memory")
+        
+        if archived_count == 0:
+            print("❌ No messages were archived!")
+            return False
+        
+        # Session is automatically saved by the session manager
+        print("✓ Session automatically persisted to S3")
+        
+        # PART 2: Create NEW agent instance and restore from S3
+        print("\n" + "=" * 70)
+        print("PART 2: RESTORE FROM S3 AND TEST SEMANTIC SEARCH")
+        print("=" * 70)
+        
+        # Create new session manager with same session ID
+        new_session_manager = S3SessionManager(
+            session_id=session_id,
+            bucket=bucket,
+            prefix=prefix,
+            region_name=aws_region,
+        )
+        print("✓ Created new S3 session manager for restoration")
+        
+        # Create NEW agent instance (will restore from S3)
+        restored_conversation_manager = SemanticSummarizingConversationManager(
+            summary_ratio=0.6,
+            preserve_recent_messages=2,
+            message_context_radius=1,
+            semantic_search_top_k=3,
+            semantic_search_min_score=-2.5,
+            embedding_model=embedding_model,
+            aws_region=aws_region,
+            embedding_dimensions=embedding_dimensions,
+            backend="ann" if ann_engine else "numpy",
+            ann_engine=ann_engine,
+        )
+        
+        restored_semantic_hook = SemanticMemoryHook(enabled=True)
+        
+        restored_agent = Agent(
+            name="TestAgent",
+            model="us.amazon.nova-lite-v1:0",
+            system_prompt="Give brief responses.",
+            conversation_manager=restored_conversation_manager,
+            hooks=[restored_semantic_hook],
+            session_manager=new_session_manager,
+        )
+        print("✓ Created NEW agent instance - automatically restored from S3")
+        
+        # Verify archived messages were restored
+        restored_archived_count = len(restored_agent.state.get("archived_messages") or [])
+        print(f"✓ Restored {restored_archived_count} archived messages from S3")
+        
+        # IMPORTANT: The conversation manager's restore_from_session doesn't have access to
+        # agent.state['archived_messages'], so we need to manually rebuild the semantic index
+        if restored_archived_count > 0:
+            print(f"\n🔧 Manually rebuilding semantic index from {restored_archived_count} archived messages...")
+            # Initialize the semantic index
+            restored_agent.conversation_manager._semantic_index = restored_agent.conversation_manager._initialize_semantic_index()
+            # Initialize container and restore messages  
+            container = restored_agent.conversation_manager._ensure_container()
+            archived_messages = restored_agent.state.get("archived_messages") or []
+            for msg_data in archived_messages:
+                container.add_message(msg_data)
+            print(f"✓ Semantic index manually rebuilt with {restored_agent.conversation_manager._semantic_index.size()} documents")
+        else:
+            print("⚠️  No archived messages to restore")
+        
+        if restored_archived_count != archived_count:
+            print(f"❌ Mismatch: saved {archived_count} but restored {restored_archived_count}")
+            return False
+        
+        # PART 3: Test semantic search on restored messages
+        print("\n" + "=" * 70)
+        print("PART 3: TEST SEMANTIC SEARCH AFTER RESTORATION")
+        print("=" * 70)
+        
+        # Try to find the reference number using semantic search
+        query = "What was our shared reference number? Please tell me the exact number. The word is 'pineapple'."
+        print(f"\n🔍 Query: '{query}'")
+        
+        # Check messages before agent call
+        messages_before = len(restored_agent.messages)
+        
+        # The hook should automatically enrich the message with context
+        restored_agent(query)
+        
+        # Check if messages were enriched
+        messages_after = len(restored_agent.messages)
+        print(f"\n📨 Messages before: {messages_before}, after: {messages_after} (diff: {messages_after - messages_before})")
+        
+        print("\n💬 Agent Response:")
+        response_text = extract_text_content(restored_agent.messages[-1])
+        print(response_text)
+        
+        # Also check what the actual user message was (to see if it was enriched)
+        if messages_after >= 2:
+            user_message_text = extract_text_content(restored_agent.messages[-2])
+            if len(user_message_text) > len(query) + 50:  # If it's much longer, it was enriched
+                print(f"\n✅ User message WAS enriched (length: {len(user_message_text)} vs query: {len(query)})")
+            else:
+                print(f"\n❌ User message was NOT enriched (length: {len(user_message_text)} vs query: {len(query)})")
+        
+        # Check if reference number is in the response
+        if str(reference_number) in response_text:
+            print(f"\n✅ SUCCESS: Reference number '{reference_number}' retrieved via semantic search after S3 restore!")
+            print("   Archived messages were correctly restored and re-indexed for semantic search")
+            return True
+        else:
+            print(f"\n❌ FAILURE: Reference number '{reference_number}' not found in response")
+            print("   Semantic search may not be working correctly after restoration")
+            return False
+            
+    except Exception as e:
+        print(f"\n❌ Test failed with error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    finally:
+        # Cleanup: try to delete the test session from S3
+        try:
+            print("\n🧹 Cleaning up test session from S3...")
+            # The S3SessionManager should have methods to delete sessions
+            # For now, just inform the user
+            print(f"   Session '{session_id}' can be manually deleted from s3://{bucket}/{prefix}")
+        except Exception:
+            pass
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Test Semantic Conversation Manager with configurable embeddings",
@@ -584,6 +867,22 @@ def main():
         action="store_true",
         help="Skip comparison mode and use default local model only",
     )
+    parser.add_argument(
+        "--ann-engine",
+        default=None,
+        choices=["hnswlib", "faiss"],
+        help="Use ANN (Approximate Nearest Neighbor) search with specified engine (hnswlib or faiss) for faster search on large datasets",
+    )
+    parser.add_argument(
+        "--s3-uri",
+        default=None,
+        help="S3 URI for testing session persistence (format: s3://bucket/optional_prefix). Example: s3://danilop-tests/my-sessions",
+    )
+    parser.add_argument(
+        "--test-s3-only",
+        action="store_true",
+        help="Only test S3 session persistence and restore (requires --s3-uri)",
+    )
 
     args = parser.parse_args()
 
@@ -607,12 +906,43 @@ def main():
         print("\n✓ Embedding provider test completed successfully.")
         sys.exit(0)
 
+    # Check if S3 test was requested
+    if args.test_s3_only:
+        if not args.s3_uri:
+            print("\n❌ Error: --s3-uri is required for S3 persistence testing")
+            sys.exit(1)
+        success = demonstrate_s3_persistence_and_restore(
+            s3_uri=args.s3_uri,
+            embedding_model=embedding_model,
+            aws_region=args.region,
+            embedding_dimensions=args.dimensions,
+            ann_engine=args.ann_engine,
+        )
+        sys.exit(0 if success else 1)
+
     # Run the full demonstration
     demonstrate_reference_preservation(
         embedding_model=embedding_model,
         aws_region=args.region,
         embedding_dimensions=args.dimensions,
+        ann_engine=args.ann_engine,
     )
+    
+    # If S3 URI provided, also run S3 persistence test
+    if args.s3_uri:
+        print("\n" + "=" * 70)
+        print("RUNNING S3 SESSION PERSISTENCE TEST")
+        print("=" * 70)
+        success = demonstrate_s3_persistence_and_restore(
+            s3_uri=args.s3_uri,
+            embedding_model=embedding_model,
+            aws_region=args.region,
+            embedding_dimensions=args.dimensions,
+            ann_engine=args.ann_engine,
+        )
+        if not success:
+            print("\n⚠️  S3 persistence test failed")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -14,8 +14,8 @@ from strands.types.exceptions import ContextWindowOverflowException
 from strands.agent.conversation_manager.conversation_manager import ConversationManager
 
 # Import the local SemanticSearch
-from semantic_search import SemanticSearch, SearchConfig
-from message_container import ArchivedMessageContainer
+from .semantic_search import SemanticSearch, SearchConfig
+from .message_container import ArchivedMessageContainer
 
 if TYPE_CHECKING:
     from strands.agent.agent import Agent
@@ -76,6 +76,8 @@ class SemanticSummarizingConversationManager(ConversationManager):
         embedding_model: str = "all-MiniLM-L12-v2",
         aws_region: Optional[str] = None,
         embedding_dimensions: Optional[int] = None,
+        backend: str = "numpy",
+        ann_engine: Optional[str] = "hnswlib",
     ):
         """Initialize the conversation manager with semantic memory.
 
@@ -105,6 +107,8 @@ class SemanticSummarizingConversationManager(ConversationManager):
             aws_region: AWS region for Bedrock models. Optional, uses boto3 default if not specified.
             embedding_dimensions: Dimensions for models that support variable dimensions.
                 For example, Titan v2 supports 256, 512, or 1024 dimensions.
+            backend: Search backend. "numpy" for exact search (default), "ann" for approximate nearest neighbors.
+            ann_engine: ANN engine when backend="ann". Options: "hnswlib" (default), "faiss".
         """
         super().__init__()
         if summarization_agent is not None and summarization_system_prompt is not None:
@@ -137,6 +141,8 @@ class SemanticSummarizingConversationManager(ConversationManager):
         self._embedding_model = embedding_model
         self._aws_region = aws_region
         self._embedding_dimensions = embedding_dimensions
+        self._backend = backend
+        self._ann_engine = ann_engine
 
     def _initialize_semantic_index(self) -> SemanticSearch:
         """Initialize or get the semantic search index."""
@@ -146,6 +152,8 @@ class SemanticSummarizingConversationManager(ConversationManager):
                 embedding_model=self._embedding_model,
                 aws_region=self._aws_region,
                 embedding_dimensions=self._embedding_dimensions,
+                backend=self._backend,
+                ann_engine=self._ann_engine,
                 auto_index=True,
             )
             self._semantic_index = SemanticSearch(config=config)

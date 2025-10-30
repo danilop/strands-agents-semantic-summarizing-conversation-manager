@@ -2,10 +2,43 @@
 
 A conversation management system for Strands Agents that combines summarization with exact message recall using semantic search.
 
+## Quick Start (2 minutes)
+
+1) Install deps
+```bash
+uv sync
+```
+
+2) Run the demo (local embeddings)
+```bash
+uv run demo.py
+```
+
+3) Integrate in your agent
+```python
+from strands_semantic_memory import (
+    SemanticSummarizingConversationManager,
+    SemanticMemoryHook,
+)
+
+conv = SemanticSummarizingConversationManager(
+    embedding_model="all-MiniLM-L12-v2"
+)
+hook = SemanticMemoryHook()
+
+agent = Agent(model="us.amazon.nova-lite-v1:0",
+              conversation_manager=conv,
+              hooks=[hook])
+```
+
+That’s it: keep using your agent as usual; summarization and semantic recall happen automatically.
+
 ## Features
 
 - **Hybrid Memory**: Combines summarization (for context management) with exact recall (for detailed history)
 - **Semantic Search**: Uses embeddings to find relevant historical messages
+- **ANN Support**: Optional approximate nearest neighbor search with hnswlib or faiss for large-scale deployments
+- **S3 Session Persistence**: Save and restore agent sessions with full semantic memory to AWS S3
 - **Context Radius**: Includes surrounding messages for better context
 - **Automatic Enrichment**: Hook system automatically adds relevant history to new queries
 - **Intelligent Overlap**: Merges overlapping message ranges to avoid duplicates
@@ -15,7 +48,7 @@ A conversation management system for Strands Agents that combines summarization 
 ## Components
 
 ### 1. SemanticSummarizingConversationManager
-Located in `semantic_conversation_manager.py`
+Located in `strands_semantic_memory/semantic_conversation_manager.py`
 
 - Extends the base conversation manager with semantic memory capabilities
 - Stores exact messages with semantic indexing for intelligent retrieval
@@ -24,17 +57,19 @@ Located in `semantic_conversation_manager.py`
 - Real-time memory usage statistics and monitoring
 
 ### 2. SemanticMemoryHook
-Located in `semantic_memory_hook.py`
+Located in `strands_semantic_memory/semantic_memory_hook.py`
 
 - Automatically enriches user messages with relevant historical context
 - Searches semantic memory when new messages are added
 - Provides natural, contextual message enhancement
 
 ### 3. SemanticSearch
-Located in `semantic_search.py`
+Located in `strands_semantic_memory/semantic_search.py`
 
 - Semantic search engine with sentence transformers and cross-encoder reranking
-- Supports document indexing, searching, and persistence
+- Supports exact search (numpy) or approximate nearest neighbor (ANN) with hnswlib/faiss
+- Automatic fallback to exact search if ANN fails
+- Configurable HNSW parameters for performance tuning
 - Provides relevance scoring and configurable result filtering
 
 ## Installation
@@ -47,10 +82,13 @@ uv sync
 
 ## Usage
 
+Minimal usage example:
 ```python
 from strands import Agent
-from semantic_conversation_manager import SemanticSummarizingConversationManager
-from semantic_memory_hook import SemanticMemoryHook
+from strands_semantic_memory import (
+    SemanticSummarizingConversationManager,
+    SemanticMemoryHook,
+)
 
 # Create the conversation manager with defaults
 conversation_manager = SemanticSummarizingConversationManager()  # Using defaults
@@ -67,9 +105,13 @@ conversation_manager = SemanticSummarizingConversationManager(
 
     # Embedding model configuration (optional)
     embedding_model="all-MiniLM-L12-v2",    # Default: local sentence-transformers model
-    # embedding_model="bedrock:amazon.titan-embed-text-v2:0",  # Alternative: embedding model in Amazon Bedrock
-    # aws_region="us-west-2",                # Optional: AWS Region (uses AWS SDK default if not specified)
-    # embedding_dimensions=512,              # Optional: for models with variable dimensions
+    # embedding_model="bedrock:nova-multimodal-embeddings",  # Alternative: Amazon Nova in Bedrock
+    # aws_region="us-east-1",                # Optional: AWS Region (uses AWS SDK default if not specified)
+    # embedding_dimensions=1024,             # Optional: for models with variable dimensions
+    
+    # Search backend configuration (optional)
+    backend="numpy",                        # "numpy" for exact search (default) or "ann" for approximate
+    ann_engine="hnswlib",                   # "hnswlib" (default) or "faiss" when backend="ann"
 )
 
 # Create the hook
@@ -100,6 +142,117 @@ print(f"Total memory: {stats['total_memory']:,} bytes")
 # Get human-readable summary
 print(agent.conversation_manager.get_memory_usage_summary())
 ```
+
+### ANN (Approximate Nearest Neighbor) Backend
+
+For large-scale deployments with thousands of archived messages, use the ANN backend for faster search:
+
+```python
+from strands_semantic_memory import SemanticSummarizingConversationManager
+
+# Use ANN with hnswlib (recommended for most cases)
+conversation_manager = SemanticSummarizingConversationManager(
+    backend="ann",              # Enable ANN backend
+    ann_engine="hnswlib",       # Use hnswlib (default)
+    embedding_model="all-MiniLM-L12-v2"
+)
+
+# Advanced: Custom HNSW parameters for performance tuning
+from strands_semantic_memory.semantic_search import SearchConfig
+
+config = SearchConfig(
+    embedding_model="all-MiniLM-L12-v2",
+    backend="ann",
+    ann_engine="hnswlib",
+    hnsw_M=16,                  # Number of connections per node (default: 16)
+    hnsw_ef_construction=200,   # Build quality (higher = better but slower, default: 200)
+    hnsw_ef_search=50           # Search quality (higher = better but slower, default: 50)
+)
+```
+
+**When to use ANN:**
+- ✅ Large archives (1000+ messages) where exact search becomes slow
+- ✅ Real-time applications requiring fast response times
+- ✅ Deployments where slight accuracy trade-off is acceptable
+
+**When to use exact search (numpy):**
+- ✅ Small to medium archives (<1000 messages)
+- ✅ Applications requiring guaranteed exact nearest neighbors
+- ✅ Default choice for most use cases
+
+**Performance comparison:**
+- Exact (numpy): ~200-300ms for 1000 messages
+- ANN (hnswlib): ~50-100ms for 1000 messages
+- Both use cross-encoder reranking for final results
+
+### S3 Session Persistence
+
+To enable automatic session persistence to S3:
+
+```python
+from strands import Agent
+from strands.agent.session_managers import S3SessionManager
+from strands_semantic_memory import (
+    SemanticSummarizingConversationManager,
+    SemanticMemoryHook,
+)
+
+# Create S3 session manager
+session_manager = S3SessionManager(
+    bucket="your-bucket-name",
+    prefix="agent-sessions/",  # Optional prefix
+    session_id="unique-session-id"
+)
+
+# Create conversation manager and hook
+conversation_manager = SemanticSummarizingConversationManager()
+semantic_hook = SemanticMemoryHook()
+
+# Create agent with S3 session persistence
+agent = Agent(
+    model="us.amazon.nova-lite-v1:0",
+    conversation_manager=conversation_manager,
+    hooks=[semantic_hook],
+    session_manager=session_manager
+)
+
+# Use the agent - sessions are automatically saved to S3
+agent("Hello, remember this important detail: XYZ")
+# ... more conversation ...
+
+# Later: restore from the same session
+restored_agent = Agent(
+    model="us.amazon.nova-lite-v1:0",
+    conversation_manager=SemanticSummarizingConversationManager(),
+    hooks=[SemanticMemoryHook()],
+    session_manager=S3SessionManager(
+        bucket="your-bucket-name",
+        prefix="agent-sessions/",
+        session_id="unique-session-id"  # Same session ID
+    )
+)
+
+# IMPORTANT: Manually rebuild semantic index after restoration
+# (Required because agent.state['archived_messages'] is not automatically
+# passed to conversation manager's restore_from_session method)
+archived_messages = restored_agent.state.get("archived_messages") or []
+if archived_messages:
+    restored_agent.conversation_manager._semantic_index = (
+        restored_agent.conversation_manager._initialize_semantic_index()
+    )
+    container = restored_agent.conversation_manager._ensure_container()
+    for msg_data in archived_messages:
+        container.add_message(msg_data)
+
+# Now the restored agent has full access to semantic memory
+restored_agent("What was that important detail?")  # Will recall "XYZ"
+```
+
+### Integrate into an existing project (vendoring)
+
+- Copy the `strands_semantic_memory/` folder into your repo.
+- Import only the two public symbols shown above. Everything else is internal.
+- Optional: move `demo.py` out; it’s not required for integration.
 
 ## How It Works
 
@@ -441,8 +594,8 @@ The system supports configurable embedding models for semantic search:
 - Any model from [Hugging Face sentence-transformers](https://huggingface.co/models?library=sentence-transformers)
 
 **Amazon Bedrock Embedding Models** (cloud-based):
-- `"bedrock:amazon.titan-embed-text-v1"` - 1536 dimensions
-- `"bedrock:amazon.titan-embed-text-v2:0"` - 256/512/1024 dimensions (configurable)
+- `"bedrock:nova-multimodal-embeddings"` - 256/384/1024/3072 dimensions (configurable, default: 3072)
+- `"bedrock:amazon.nova-2-multimodal-embeddings-v1:0"` - Full model ID (same as above)
 - `"bedrock:cohere.embed-english-v3"` - 1024 dimensions
 
 ### Configuration Examples
@@ -456,11 +609,18 @@ manager = SemanticSummarizingConversationManager(
     embedding_model="all-mpnet-base-v2"
 )
 
-# Amazon Bedrock model
+# Amazon Bedrock model (using friendly alias)
 manager = SemanticSummarizingConversationManager(
-    embedding_model="bedrock:amazon.titan-embed-text-v2:0",
-    aws_region="us-west-2",  # Optional: uses AWS SDK default if not specified
-    embedding_dimensions=512  # Optional: 256, 512, or 1024
+    embedding_model="bedrock:nova-multimodal-embeddings",
+    aws_region="us-east-1",  # Optional: uses AWS SDK default if not specified
+    embedding_dimensions=1024  # Optional: 256, 384, 1024, or 3072 (default)
+)
+
+# Or use the full model ID
+manager = SemanticSummarizingConversationManager(
+    embedding_model="bedrock:amazon.nova-2-multimodal-embeddings-v1:0",
+    aws_region="us-east-1",
+    embedding_dimensions=1024
 )
 ```
 
@@ -485,30 +645,70 @@ Current question: What was the exact decorator syntax you showed earlier?
 
 ## File Structure
 
-- `semantic_conversation_manager.py` - Main semantic conversation manager with memory limits
-- `message_container.py` - Message storage with automatic semantic indexing
-- `semantic_memory_hook.py` - Hook for automatic context enrichment
-- `semantic_search.py` - Semantic search engine with embeddings
-- `embedding_providers.py` - Configurable embedding providers (local and Bedrock)
-- `message_utils.py` - Message processing utilities
-- `memory_estimator.py` - Memory usage calculation utilities
-- `main.py` - Demo and test examples
-- `README.md` - This documentation
+```
+strands-semantic-past/
+├── strands_semantic_memory/           # Main package (vendorable)
+│   ├── __init__.py                   # Public API exports
+│   ├── semantic_conversation_manager.py  # Main conversation manager
+│   ├── semantic_memory_hook.py       # Hook for automatic enrichment
+│   ├── semantic_search.py            # Search engine (numpy/ANN backends)
+│   ├── message_container.py          # Message storage with indexing
+│   ├── embedding_providers.py        # Local and Bedrock embeddings
+│   ├── message_utils.py              # Message processing utilities
+│   └── memory_estimator.py           # Memory usage calculation
+├── demo.py                            # Demo and test suite
+├── README.md                          # This documentation
+└── pyproject.toml                     # Project dependencies
+```
+
+**For Vendoring**: Copy the entire `strands_semantic_memory/` folder into your project and import only the public API:
+
+```python
+from strands_semantic_memory import (
+    SemanticSummarizingConversationManager,
+    SemanticMemoryHook,
+)
+```
 
 ## Demo
 
-Run the demonstration:
+Run the demonstration with various options:
 
 ```bash
-# Run comparison mode (tests both local and Bedrock embeddings)
-uv run main.py
+# Basic demo (tests reference number preservation with local embeddings)
+uv run demo.py --no-comparison
+
+# Test with ANN backend (hnswlib for faster search on large datasets)
+uv run demo.py --no-comparison --ann-engine hnswlib
+
+# Test with specific embedding model
+uv run demo.py --no-comparison --embedding-model all-MiniLM-L12-v2
+
+# Test S3 session persistence and restore
+uv run demo.py --test-s3-only --s3-uri s3://your-bucket/prefix
+
+# Test S3 with ANN backend
+uv run demo.py --test-s3-only --s3-uri s3://your-bucket --ann-engine hnswlib
+
+# Run both reference preservation AND S3 tests
+uv run demo.py --no-comparison --s3-uri s3://your-bucket
 
 # Test embedding configuration only
-uv run main.py --embedding-test-only
+uv run demo.py --embedding-test-only
 
-# Test specific embedding model
-uv run main.py --embedding-model "bedrock:amazon.titan-embed-text-v2:0" --region us-west-2
+# Test with AWS Bedrock embeddings
+uv run demo.py --embedding-model "bedrock:nova-multimodal-embeddings" --region us-east-1
 ```
+
+### Demo Command-Line Options
+
+- `--no-comparison` - Skip comparison mode, just run reference preservation test
+- `--ann-engine {hnswlib,faiss}` - Use ANN (approximate nearest neighbor) backend for search
+- `--s3-uri s3://bucket/prefix` - Enable S3 session persistence testing
+- `--test-s3-only` - Run only S3 persistence test (skips reference preservation)
+- `--embedding-model MODEL` - Specify embedding model (local or Bedrock)
+- `--region REGION` - AWS region for Bedrock models
+- `--embedding-test-only` - Test embedding provider configuration only
 
 This runs a test showing how semantic memory preserves exact information that is excluded from summaries. The demo:
 

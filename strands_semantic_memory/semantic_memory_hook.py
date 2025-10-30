@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, List
 from strands.hooks import HookProvider, HookRegistry
 from strands.hooks.events import MessageAddedEvent
 from strands.types.content import Message
-from message_utils import extract_text_content, generate_message_id
+from .message_utils import extract_text_content, generate_message_id
 
 if TYPE_CHECKING:
     from strands.agent.agent import Agent
@@ -81,7 +81,7 @@ class SemanticMemoryHook(HookProvider):
             return
 
         # Import here to avoid circular dependency
-        from semantic_conversation_manager import SemanticSummarizingConversationManager
+        from .semantic_conversation_manager import SemanticSummarizingConversationManager
 
         if not isinstance(conv_manager, SemanticSummarizingConversationManager):
             logger.debug(

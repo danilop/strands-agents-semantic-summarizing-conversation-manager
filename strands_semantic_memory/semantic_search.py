@@ -31,7 +31,7 @@ import pickle
 from pathlib import Path
 from sentence_transformers import CrossEncoder
 import torch
-from embedding_providers import create_embedding_provider
+from .embedding_providers import create_embedding_provider
 
 
 @dataclass
@@ -94,6 +94,11 @@ class SearchConfig:
         batch_size: int = 32,
         aws_region: Optional[str] = None,
         embedding_dimensions: Optional[int] = None,
+        backend: str = "numpy",
+        ann_engine: Optional[str] = "hnswlib",
+        hnsw_M: int = 16,
+        hnsw_ef_construction: int = 200,
+        hnsw_ef_search: int = 50,
     ):
         """
         Initialize search configuration.
@@ -110,6 +115,11 @@ class SearchConfig:
             batch_size: Batch size for encoding documents
             aws_region: AWS region for Bedrock models. Optional, uses boto3 default if not specified.
             embedding_dimensions: Dimensions for models that support variable dimensions
+            backend: Search backend to use. "numpy" for exact search, "ann" for approximate nearest neighbors
+            ann_engine: ANN engine when backend="ann". Options: "hnswlib" (default), "faiss"
+            hnsw_M: HNSW parameter M (number of bi-directional links). Higher = better recall, more memory
+            hnsw_ef_construction: HNSW ef_construction parameter. Higher = better index quality, slower build
+            hnsw_ef_search: HNSW ef search parameter. Higher = better recall, slower search
         """
         self.embedding_model = embedding_model
         self.cross_encoder_model = cross_encoder_model
@@ -120,6 +130,11 @@ class SearchConfig:
         self.batch_size = batch_size
         self.aws_region = aws_region
         self.embedding_dimensions = embedding_dimensions
+        self.backend = backend
+        self.ann_engine = ann_engine
+        self.hnsw_M = hnsw_M
+        self.hnsw_ef_construction = hnsw_ef_construction
+        self.hnsw_ef_search = hnsw_ef_search
 
         if self.cache_dir:
             self.cache_dir.mkdir(exist_ok=True)
@@ -163,6 +178,7 @@ class SemanticSearch(SemanticSearchInterface):
         self._embeddings: Optional[np.ndarray] = None
         self._is_indexed = False
         self._pending_documents: List[str] = []  # Documents waiting to be indexed
+        self._ann_index = None  # Optional ANN index
 
         # Add initial documents if provided
         if documents:
@@ -192,6 +208,21 @@ class SemanticSearch(SemanticSearchInterface):
         )
 
         print(f"✓ Cross-encoder: {self.config.cross_encoder_model}")
+
+        # Initialize ANN backend if requested
+        if self.config.backend == "ann":
+            self._init_ann_index()
+
+    def _init_ann_index(self):
+        """Initialize an ANN index if backend=ann."""
+        engine = self.config.ann_engine
+        if engine == "hnswlib":
+            print("✓ ANN backend: hnswlib (will initialize on first indexing)")
+            print(f"  Parameters: M={self.config.hnsw_M}, ef_construction={self.config.hnsw_ef_construction}, ef_search={self.config.hnsw_ef_search}")
+        elif engine == "faiss":
+            print("✓ ANN backend: faiss (will initialize on first indexing)")
+        else:
+            print(f"⚠️  Unknown ANN engine '{engine}', falling back to numpy")
 
     def add(self, documents: Union[str, List[str]]) -> "SemanticSearch":
         """
@@ -258,8 +289,48 @@ class SemanticSearch(SemanticSearchInterface):
         docs_per_sec = len(self._pending_documents) / encoding_time
         print(f"  Indexed in {encoding_time:.2f}s ({docs_per_sec:.1f} docs/sec)")
 
+        # Build ANN index if using ANN backend
+        if self.config.backend == "ann":
+            self._build_ann_index()
+
         self._pending_documents.clear()
         self._is_indexed = True
+
+    def _build_ann_index(self):
+        """Build or rebuild the ANN index from current embeddings."""
+        if self._embeddings is None or len(self._embeddings) == 0:
+            return
+
+        engine = self.config.ann_engine
+        dim = self._embeddings.shape[1]
+        total = self._embeddings.shape[0]
+
+        try:
+            if engine == "hnswlib":
+                import hnswlib
+
+                index = hnswlib.Index(space="cosine", dim=dim)
+                index.init_index(
+                    max_elements=total,
+                    ef_construction=self.config.hnsw_ef_construction,
+                    M=self.config.hnsw_M,
+                )
+                index.set_ef(self.config.hnsw_ef_search)
+                labels = np.arange(total)
+                index.add_items(self._embeddings, labels)
+                self._ann_index = ("hnswlib", index)
+                print(f"  ✓ Built hnswlib index with {total} items")
+            elif engine == "faiss":
+                import faiss
+
+                index = faiss.IndexFlatIP(dim)
+                index.add(self._embeddings.astype(np.float32))
+                self._ann_index = ("faiss", index)
+                print(f"  ✓ Built faiss index with {total} items")
+        except Exception as e:
+            print(f"  ⚠️  Failed to build ANN index: {e}")
+            print("  Falling back to numpy search")
+            self._ann_index = None
 
     def index(self, force: bool = False) -> "SemanticSearch":
         """
@@ -339,8 +410,35 @@ class SemanticSearch(SemanticSearchInterface):
         if len(query_embedding.shape) > 1:
             query_embedding = query_embedding[0]
 
+        # Try ANN search first if available
+        ann_candidates_indices = None
+        ann_candidates_scores = None
+        if self._ann_index is not None:
+            engine, index = self._ann_index
+            try:
+                candidates_n = rerank_top_n or min(top_k * 3, len(self._documents)) if rerank else top_k
+                candidates_n = min(candidates_n, len(self._documents))
+                
+                if engine == "hnswlib":
+                    labels, distances = index.knn_query(query_embedding, k=candidates_n)
+                    ann_candidates_indices = labels[0]
+                    # Convert cosine distance to similarity (1 - distance)
+                    ann_candidates_scores = 1.0 - distances[0]
+                elif engine == "faiss":
+                    q = query_embedding.reshape(1, -1).astype(np.float32)
+                    scores, labels = index.search(q, candidates_n)
+                    ann_candidates_indices = labels[0]
+                    ann_candidates_scores = scores[0]
+            except Exception as e:
+                print(f"  ⚠️  ANN search failed, falling back to numpy: {e}")
+                ann_candidates_indices = None
+
         # Calculate similarities (dot product since embeddings are normalized)
-        similarities = np.dot(self._embeddings, query_embedding)
+        # Skip if we got ANN candidates for reranking
+        if ann_candidates_indices is None:
+            similarities = np.dot(self._embeddings, query_embedding)
+        else:
+            similarities = None  # Won't be used
 
         # Get top candidates
         if rerank and top_k > 0:
@@ -349,8 +447,13 @@ class SemanticSearch(SemanticSearchInterface):
             candidates_n = min(candidates_n, len(self._documents))
 
             # Get top candidates by embedding similarity
-            top_indices = np.argpartition(similarities, -candidates_n)[-candidates_n:]
-            top_indices = top_indices[np.argsort(similarities[top_indices])][::-1]
+            if ann_candidates_indices is not None:
+                # Use ANN candidates
+                top_indices = ann_candidates_indices
+            else:
+                # Use numpy search
+                top_indices = np.argpartition(similarities, -candidates_n)[-candidates_n:]
+                top_indices = top_indices[np.argsort(similarities[top_indices])][::-1]
 
             # Rerank with cross-encoder for better accuracy
             candidate_texts = [self._documents[i] for i in top_indices]
@@ -374,17 +477,30 @@ class SemanticSearch(SemanticSearchInterface):
         else:
             # No reranking - use embedding similarities directly
             top_k = min(top_k, len(self._documents))
-            top_indices = np.argpartition(similarities, -top_k)[-top_k:]
-            top_indices = top_indices[np.argsort(similarities[top_indices])][::-1]
-
-            results = [
-                SearchResult(
-                    score=float(similarities[i]),
-                    text=self._documents[i],
-                    index=int(i),
-                )
-                for i in top_indices
-            ]
+            
+            if ann_candidates_indices is not None:
+                # Use ANN results directly
+                top_indices = ann_candidates_indices[:top_k]
+                results = [
+                    SearchResult(
+                        score=float(ann_candidates_scores[i]),
+                        text=self._documents[int(top_indices[i])],
+                        index=int(top_indices[i]),
+                    )
+                    for i in range(len(top_indices))
+                ]
+            else:
+                # Use numpy search
+                top_indices = np.argpartition(similarities, -top_k)[-top_k:]
+                top_indices = top_indices[np.argsort(similarities[top_indices])][::-1]
+                results = [
+                    SearchResult(
+                        score=float(similarities[i]),
+                        text=self._documents[i],
+                        index=int(i),
+                    )
+                    for i in top_indices
+                ]
             rerank_info = ""
 
         # Apply minimum score filter if specified
