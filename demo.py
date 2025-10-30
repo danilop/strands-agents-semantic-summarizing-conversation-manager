@@ -750,7 +750,7 @@ def demonstrate_s3_persistence_and_restore(
         # Verify archived messages were restored
         restored_archived_count = len(restored_agent.state.get("archived_messages") or [])
         print(f"✓ Restored {restored_archived_count} archived messages from S3")
-        print("✓ Semantic index will be automatically rebuilt on first query (handled by SemanticMemoryHook)")
+        print("✓ Semantic index will be automatically initialized on first query")
         
         if restored_archived_count != archived_count:
             print(f"❌ Mismatch: saved {archived_count} but restored {restored_archived_count}")

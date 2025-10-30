@@ -103,8 +103,7 @@ class SemanticMemoryHook(HookProvider):
             logger.debug("No text content found in user message")
             return
 
-        # AUTOMATIC: Ensure semantic index is initialized (handles S3 restoration case)
-        # If the index doesn't exist but we have archived messages, rebuild it
+        # Ensure semantic index is initialized from archived messages if needed
         self._ensure_semantic_index_initialized(conv_manager, agent)
 
         # Search for relevant historical messages
@@ -267,8 +266,8 @@ class SemanticMemoryHook(HookProvider):
     def _ensure_semantic_index_initialized(self, conv_manager, agent: "Agent") -> None:
         """Ensure semantic index is initialized, rebuilding from archived messages if needed.
         
-        This handles the S3 restoration case where archived messages are restored to agent.state
-        but the semantic index hasn't been rebuilt yet.
+        Automatically initializes the semantic index from archived messages in agent.state
+        when the index is missing or empty. This enables seamless session restoration.
         
         Args:
             conv_manager: The semantic conversation manager

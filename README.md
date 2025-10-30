@@ -232,8 +232,7 @@ restored_agent = Agent(
     )
 )
 
-# The semantic index is automatically rebuilt on first query by SemanticMemoryHook
-# No manual initialization needed!
+# Use the restored agent - semantic index is automatically initialized on first query
 restored_agent("What was that important detail?")  # Will recall "XYZ"
 ```
 
