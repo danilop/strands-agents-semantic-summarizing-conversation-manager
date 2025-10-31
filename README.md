@@ -26,12 +26,12 @@ from strands_semantic_memory import (
 conv_manager = SemanticSummarizingConversationManager(
     embedding_model="all-MiniLM-L12-v2"
 )
+
 sematic_memory_hook = SemanticMemoryHook()
 
 agent = Agent(model="us.amazon.nova-lite-v1:0",
               conversation_manager=conv_manager,
               hooks=[sematic_memory_hook])
-
 ```
 
 That’s it: keep using your agent as usual; summarization and semantic recall happen automatically.
