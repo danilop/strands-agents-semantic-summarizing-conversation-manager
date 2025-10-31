@@ -1,6 +1,6 @@
 # Strands Agents – Semantic Summarizing Conversation Manager
 
-A conversation management system for Strands Agents that combines summarization with exact message recall using semantic search.
+A conversation management system for Strands Agents that combines summarization with exact message recall using semantic search. As a prototype, this system demonstrates the core concepts but would benefit from additional hardening, testing, and optimization before production use.
 
 ## Quick Start (2 minutes)
 
