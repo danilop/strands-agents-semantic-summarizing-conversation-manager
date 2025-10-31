@@ -16,19 +16,22 @@ uv run demo.py
 
 3) Integrate in your agent
 ```python
+from strands import Agent
+
 from strands_semantic_memory import (
     SemanticSummarizingConversationManager,
     SemanticMemoryHook,
 )
 
-conv = SemanticSummarizingConversationManager(
+conv_manager = SemanticSummarizingConversationManager(
     embedding_model="all-MiniLM-L12-v2"
 )
-hook = SemanticMemoryHook()
+sematic_memory_hook = SemanticMemoryHook()
 
 agent = Agent(model="us.amazon.nova-lite-v1:0",
-              conversation_manager=conv,
-              hooks=[hook])
+              conversation_manager=conv_manager,
+              hooks=[sematic_memory_hook])
+
 ```
 
 That’s it: keep using your agent as usual; summarization and semantic recall happen automatically.
