@@ -2,6 +2,10 @@
 
 A conversation management system for Strands Agents that combines summarization with exact message recall using semantic search. As a prototype, this system demonstrates the core concepts but would benefit from additional hardening, testing, and optimization before production use.
 
+For more information on this project, see this blog post:
+
+[Never Forget a Thing: Building AI Agents with Hybrid Memory Using Strands Agents](https://dev.to/aws/never-forget-a-thing-building-ai-agents-with-hybrid-memory-using-strands-agents-2g66)
+
 ## Quick Start (2 minutes)
 
 1) Install deps
